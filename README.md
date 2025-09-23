@@ -9,7 +9,21 @@
 
 > 中文名：思绪思维导图。一个简单&强大的 Web 思维导图库和思维导图软件。
 
-本项目主要包含以下内容：
+# 客户端和插件
+
+- 思绪思维导图客户端
+
+支持Windows、Mac及Linux系统。下载地址：[Github](https://github.com/wanglin2/mind-map/releases)、[百度网盘](https://pan.baidu.com/s/1C8phEJ5pagAAa-o1tU42Uw?pwd=jqfb)、[夸克网盘](https://pan.quark.cn/s/2733982f1976)
+
+- Obsidian插件
+
+下载地址：[Github](https://github.com/wanglin2/obsidian-simplemindmap/releases)
+
+- UTools插件
+
+已上架[uTools](https://www.u.tools/)插件应用市场，可直接在`uTools`插件应用市场中搜索`思绪`进行安装，也可以直接访问该地址：[主页](https://www.u-tools.cn/plugins/detail/%E6%80%9D%E7%BB%AA%E6%80%9D%E7%BB%B4%E5%AF%BC%E5%9B%BE/)，点击右侧的【启动】按钮进行安装
+
+# 库
 
 - 一个 `js` 思维导图库，不依赖任何框架，可以用来快速完成 Web 思维导图产品的开发。
 
@@ -18,20 +32,6 @@
 - 一个 Web 思维导图，基于思维导图库、`Vue2.x`、`ElementUI` 开发，支持操作电脑本地文件，可以当做一个在线版思维导图应用使用，也可以自部署和二次开发。
 
 >  在线地址：[https://wanglin2.github.io/mind-map/](https://wanglin2.github.io/mind-map/)
-
-- 客户端和插件
-
-> 1.独立客户端，支持Windows、Mac及Linux系统。
->
-> 下载地址：[Github](https://github.com/wanglin2/mind-map/releases)、[百度云盘](https://pan.baidu.com/s/1huasEbKsGNH2Af68dvWiOg?pwd=3bp3)
-
-> 2.`uTools`插件，现已上架[uTools](https://www.u.tools/)插件应用市场。
->
-> 可直接在`uTools`插件应用市场中搜索`思绪`进行安装，也可以直接访问该地址：[主页](https://www.u-tools.cn/plugins/detail/%E6%80%9D%E7%BB%AA%E6%80%9D%E7%BB%B4%E5%AF%BC%E5%9B%BE/)，点击右侧的【启动】按钮进行安装。
-
-> 3.`obsidian`插件，首个版本现已发布：
->
-> 下载地址：[https://github.com/wanglin2/obsidian-simplemindmap/releases](https://github.com/wanglin2/obsidian-simplemindmap/releases)
 
 - 云存储版本，如果你需要带后端的云存储版本，可以尝试我们开发的另一个项目[理想文档](https://github.com/wanglin2/lx-doc)。
 
