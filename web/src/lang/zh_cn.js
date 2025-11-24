@@ -104,6 +104,7 @@ export default {
     copyNode: '复制节点',
     cutNode: '剪切节点',
     pasteNode: '粘贴节点',
+    copyNodeToMarkdown: '复制节点为Markdown',
     backCenter: '回到根节点',
     expandAll: '展开所有',
     unExpandAll: '收起所有',
@@ -235,7 +236,8 @@ export default {
     title: '大纲',
     nodeDefaultText: '分支节点',
     print: '打印',
-    fullscreen: '全屏'
+    fullscreen: '全屏',
+    copyToMarkdown: '复制为Markdown'
   },
   scale: {
     zoomIn: '放大',

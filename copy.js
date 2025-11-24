@@ -1,16 +1,24 @@
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const src = path.resolve(__dirname, './dist/index.html') 
-const dest = path.resolve(__dirname, './index.html') 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-if (fs.existsSync(dest)) {
-    fs.unlinkSync(dest)
+// Source directory containing the built files
+const srcDir = path.resolve(__dirname, './dist');
+// Destination directory inside the web project
+const destDir = path.resolve(__dirname, '../mindmap-web/dist');
+
+// Remove existing destination directory if it exists
+if (fs.existsSync(destDir)) {
+    fs.rmSync(destDir, { recursive: true, force: true });
 }
 
-if (fs.existsSync(src)) {
-    fs.copyFileSync(src, dest)
-    fs.unlinkSync(src)
+// Copy the entire dist folder to the web project's dist directory
+if (fs.existsSync(srcDir)) {
+    // Node 16+ supports recursive copy
+    fs.cpSync(srcDir, destDir, { recursive: true });
+    // Optionally, clean up the source dist folder after copying
+    // fs.rmSync(srcDir, { recursive: true, force: true });
 }
-
-// console.warn('请检查付费插件是否启用！！！')
