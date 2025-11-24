@@ -7,7 +7,8 @@
   >
     <span class="closeBtn el-icon-close" @click="close"></span>
     <div class="sidebarHeader" v-if="title">
-      {{ title }}
+      <span class="headerTitle">{{ title }}</span>
+      <slot name="headerButtons"></slot>
     </div>
     <div class="sidebarContent customScrollbar" ref="sidebarContent">
       <slot></slot>
@@ -107,17 +108,29 @@ export default {
     top: 12px;
     font-size: 20px;
     cursor: pointer;
+    z-index: 2100;
   }
 
-  .sidebarHeader {
+    .sidebarHeader {
     width: 100%;
     height: 44px;
     border-bottom: 1px solid #e8e8e8;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     flex-grow: 0;
     flex-shrink: 0;
+    position: relative;
+    padding-left: 12px;
+  }
+
+    .headerTitle {
+    display: block;
+    max-width: calc(100% - 140px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: left;
   }
 
   .sidebarContent {

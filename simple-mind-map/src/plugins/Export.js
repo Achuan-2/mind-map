@@ -110,6 +110,38 @@ class Export {
           }
         }
       }
+    // 导出时移除悬停提示、展开按钮和快速创建按钮，避免出现在导出图片中
+    try {
+      const hoverNodes = svg.find('.smm-hover-node')
+      if (hoverNodes.length > 0) {
+        hoverNodes.map(item => {
+          try {
+            item.remove()
+          } catch (e) {}
+        })
+        svgIsChange = true
+      }
+      const expandBtns = svg.find('.smm-expand-btn')
+      if (expandBtns.length > 0) {
+        expandBtns.map(item => {
+          try {
+            item.remove()
+          } catch (e) {}
+        })
+        svgIsChange = true
+      }
+      const quickCreateBtns = svg.find('.smm-quick-create-child-btn')
+      if (quickCreateBtns.length > 0) {
+        quickCreateBtns.map(item => {
+          try {
+            item.remove()
+          } catch (e) {}
+        })
+        svgIsChange = true
+      }
+    } catch (e) {
+      // 忽略任何在查找/移除时的异常，导出流程继续
+    }
     }
     // 自定义处理svg的方法
     if (typeof handleBeingExportSvg === 'function') {

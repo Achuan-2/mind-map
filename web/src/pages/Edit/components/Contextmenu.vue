@@ -92,6 +92,9 @@
         <span class="name">{{ $t('contextmenu.pasteNode') }}</span>
         <span class="desc">Ctrl + V</span>
       </div>
+      <div class="item" @click="exec('COPY_NODE_TO_MARKDOWN')">
+        <span class="name">{{ $t('contextmenu.copyNodeToMarkdown') }}</span>
+      </div>
       <div class="splitLine"></div>
       <div class="item" @click="exec('REMOVE_HYPERLINK')" v-if="hasHyperlink">
         <span class="name">{{ $t('contextmenu.removeHyperlink') }}</span>
@@ -186,7 +189,7 @@ import { mapState, mapMutations } from 'vuex'
 import { getTextFromHtml, imgToDataUrl } from 'simple-mind-map/src/utils'
 import { transformToMarkdown } from 'simple-mind-map/src/parse/toMarkdown'
 import { transformToTxt } from 'simple-mind-map/src/parse/toTxt'
-import { setDataToClipboard, setImgToClipboard, copy } from '@/utils'
+import { setDataToClipboard, setImgToClipboard, copy, transformToMarkdownList } from '@/utils'
 import { numberTypeList, numberLevelList } from '@/config'
 
 // 右键菜单
@@ -426,6 +429,24 @@ export default {
           break
         case 'PASTE_NODE':
           this.mindMap.renderer.paste()
+          break
+        case 'COPY_NODE_TO_MARKDOWN':
+          {
+            const getNodeData = (node) => {
+              return {
+                data: { ...node.getData() },
+                children: (node.children || []).map(child => getNodeData(child))
+              }
+            }
+            const data = getNodeData(this.node)
+            const md = transformToMarkdownList(data)
+            if (this.enableCopyToClipboardApi) {
+              setDataToClipboard(md)
+            } else {
+              copy(md)
+            }
+            this.$message.success(this.$t('contextmenu.copySuccess'))
+          }
           break
         case 'RETURN_CENTER':
           this.mindMap.renderer.setRootNodeCenter()
