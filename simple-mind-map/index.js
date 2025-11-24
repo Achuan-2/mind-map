@@ -590,7 +590,51 @@ class MindMap {
     // 去除放大缩小的变换效果
     draw.scale(1 / origTransform.scaleX, 1 / origTransform.scaleY)
     // 获取变换后的位置尺寸信息，其实是getBoundingClientRect方法的包装方法
-    const rect = draw.rbox()
+    let rect = draw.rbox()
+    // 标记rect是否使用bbox获取（bbox是SVG内部坐标，rbox是屏幕坐标）
+    let isUsingBbox = false
+    // 如果容器被 display:none（例如切换 Tab 导致不可见），某些浏览器会返回非常小的尺寸（例如 20x20 或 0x0）。
+    // 当检测到尺寸异常时，回退使用 SVG 的 bbox 来计算实际内容边界，避免导出得到 20x20 的错误尺寸。
+    // 使用50px作为异常阈值，小于这个值的宽高都认为是异常的
+    const MIN_VALID_SIZE = 50
+    const isRectInvalid =
+      !rect || rect.width < MIN_VALID_SIZE || rect.height < MIN_VALID_SIZE || Number.isNaN(rect.width) || Number.isNaN(rect.height)
+    if (isRectInvalid) {
+      let bbox = null
+      try {
+        // 尝试使用 draw 的本地 bbox（不依赖于 DOM 布局）
+        bbox = draw.bbox()
+      } catch (e) {
+        bbox = null
+      }
+      if (!bbox || bbox.width < MIN_VALID_SIZE || bbox.height < MIN_VALID_SIZE) {
+        try {
+          // 再尝试使用节点容器的 bbox
+          bbox = this.nodeDraw.bbox()
+        } catch (e) {
+          bbox = null
+        }
+      }
+      if (bbox && bbox.width >= MIN_VALID_SIZE && bbox.height >= MIN_VALID_SIZE) {
+        // 将 bbox（相对坐标）转换为与 rbox 类似的结构：x,y,width,height
+        rect = {
+          x: bbox.x,
+          y: bbox.y,
+          width: bbox.width,
+          height: bbox.height
+        }
+        isUsingBbox = true
+      } else {
+        // 最后兜底：使用原始画布尺寸（尽量避免非常小的默认值）
+        rect = {
+          x: 0,
+          y: 0,
+          width: Math.max(origWidth, 200),
+          height: Math.max(origHeight, 200)
+        }
+        isUsingBbox = true
+      }
+    }
     // 需要裁减的区域
     let clipData = null
     if (node) {
@@ -610,7 +654,13 @@ class MindMap {
     // 将svg设置为实际内容的宽高
     svg.size(rect.width, rect.height)
     // 把实际内容变换
-    draw.translate(-rect.x + elRect.left, -rect.y + elRect.top)
+    // 当使用bbox时，rect.x和rect.y是SVG内部相对坐标，直接使用负值translate
+    // 当使用rbox时，rect.x和rect.y是屏幕坐标，需要减去容器偏移
+    if (isUsingBbox) {
+      draw.translate(-rect.x, -rect.y)
+    } else {
+      draw.translate(-rect.x + elRect.left, -rect.y + elRect.top)
+    }
     // 克隆一份数据
     let clone = svg.clone()
     // 是否存在水印
