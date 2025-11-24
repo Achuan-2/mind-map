@@ -113,17 +113,6 @@
         <span class="text">{{ $t('toolbar.note') }}</span>
       </div>
       <div
-        v-if="item === 'tag'"
-        class="toolbarBtn"
-        :class="{
-          disabled: activeNodes.length <= 0
-        }"
-        @click="$bus.$emit('showNodeTag')"
-      >
-        <span class="icon iconfont iconbiaoqian"></span>
-        <span class="text">{{ $t('toolbar.tag') }}</span>
-      </div>
-      <div
         v-if="item === 'summary'"
         class="toolbarBtn"
         :class="{
