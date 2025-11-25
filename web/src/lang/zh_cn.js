@@ -237,7 +237,8 @@ export default {
     nodeDefaultText: '分支节点',
     print: '打印',
     fullscreen: '全屏',
-    copyToMarkdown: '复制为Markdown'
+    copyToMarkdown: '复制为Markdown',
+    pasteFromMarkdown: "粘贴为Markdown"
   },
   scale: {
     zoomIn: '放大',

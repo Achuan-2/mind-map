@@ -240,7 +240,9 @@ export default {
     title: 'Dàn bài',
     nodeDefaultText: 'Nhánh nút',
     print: 'In',
-    fullscreen: 'Toàn màn hình'
+    fullscreen: 'Toàn màn hình',
+    copyToMarkdown: 'Copy to Markdown',
+    pasteFromMarkdown: "Paste From Markdown"
   },
   scale: {
     zoomIn: 'Phóng to',
