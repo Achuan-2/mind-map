@@ -535,7 +535,8 @@ export default {
         } catch (err) {
           console.error('applyInlineMarkdownToTree fail', err)
         }
-        this.$bus.$emit('setData', root)
+        // emit updateData so Edit.vue can apply it using mindMap.updateData (undoable)
+        this.$bus.$emit('updateData', root)
         storeData({ root })
         this.$message.success(this.$t('outline.importSuccess') || '导入成功')
       } catch (e) {
