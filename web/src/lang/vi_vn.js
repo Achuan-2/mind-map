@@ -241,8 +241,13 @@ export default {
     nodeDefaultText: 'Nhánh nút',
     print: 'In',
     fullscreen: 'Toàn màn hình',
-    copyToMarkdown: 'Copy to Markdown',
-    pasteFromMarkdown: "Paste From Markdown"
+    copyToMarkdown: 'Sao chép thành Markdown',
+    pasteFromMarkdown: "Dán từ Markdown",
+    clipboardNotSupported: 'Trình duyệt không hỗ trợ đọc clipboard',
+    clipboardReadFail: 'Đọc clipboard thất bại',
+    clipboardEmpty: 'Clipboard trống hoặc không chứa danh sách Markdown',
+    importSuccess: 'Nhập thành công',
+    importFail: 'Nhập thất bại'
   },
   scale: {
     zoomIn: 'Phóng to',
@@ -352,7 +357,8 @@ export default {
       'Vui lòng xuất tệp đang chỉnh sửa trước khi tạo mới, Cẩn thận mất nội dung',
     openFileTip:
       'Vui lòng xuất tệp đang chỉnh sửa trước khi mở tệp, Cẩn thận mất nội dung',
-    ai: 'AI'
+    ai: 'AI',
+    pasteMarkdown: 'Dán Markdown'
   },
   edit: {
     newFeatureNoticeTitle: 'Nhắc nhở tính năng mới',

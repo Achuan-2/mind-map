@@ -238,7 +238,12 @@ export default {
     print: '打印',
     fullscreen: '全屏',
     copyToMarkdown: '复制为Markdown',
-    pasteFromMarkdown: "粘贴为Markdown"
+    pasteFromMarkdown: "粘贴为Markdown",
+    clipboardNotSupported: '浏览器不支持剪贴板读取',
+    clipboardReadFail: '读取剪贴板失败',
+    clipboardEmpty: '剪贴板为空或未包含 Markdown 列表',
+    importSuccess: '导入成功',
+    importFail: '导入失败'
   },
   scale: {
     zoomIn: '放大',
@@ -345,7 +350,8 @@ export default {
     directory: '目录',
     newFileTip: '新建文件前请先导出当前编辑的文件，谨防内容丢失',
     openFileTip: '打开文件前请先导出当前编辑的文件，谨防内容丢失',
-    ai: 'AI'
+    ai: 'AI',
+    pasteMarkdown: '粘贴Markdown'
   },
   edit: {
     newFeatureNoticeTitle: '新特性提醒',

@@ -237,8 +237,13 @@ export default {
     nodeDefaultText: '分支節點',
     print: '打印',
     fullscreen: '全屏',
-    copyToMarkdown: 'Copy to Markdown',
-    pasteFromMarkdown: "Paste From Markdown"
+    copyToMarkdown: '複製為Markdown',
+    pasteFromMarkdown: "貼上為Markdown",
+    clipboardNotSupported: '瀏覽器不支持剪貼簿讀取',
+    clipboardReadFail: '讀取剪貼簿失敗',
+    clipboardEmpty: '剪貼簿為空或未包含 Markdown 列表',
+    importSuccess: '匯入成功',
+    importFail: '匯入失敗'
   },
   scale: {
     zoomIn: '放大',
@@ -345,7 +350,8 @@ export default {
     directory: '目錄',
     newFileTip: '新增檔案前，請先匯出目前編輯的檔案，以免內容遺失',
     openFileTip: '開啟檔案前，請先匯出目前編輯的檔案，以免內容遺失',
-    ai: 'AI'
+    ai: 'AI',
+    pasteMarkdown: '貼上Markdown'
   },
   edit: {
     newFeatureNoticeTitle: '新功能提醒',

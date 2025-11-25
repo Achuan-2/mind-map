@@ -1,6 +1,6 @@
 <template>
   <div class="toolbarNodeBtnList" :class="[dir, { isDark: isDark }]">
-    <template v-for="item in list">
+    <template v-for="item in list" :key="item">
       <div
         v-if="item === 'back'"
         class="toolbarBtn"
