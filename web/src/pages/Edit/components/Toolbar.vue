@@ -26,6 +26,10 @@
       </div>
       <!-- 导出 -->
       <div class="toolbarBlock">
+        <div class="toolbarBtn" @click="onPasteMarkdown">
+          <span class="icon iconfont iconniantie"></span>
+          <span class="text">{{ $t('toolbar.pasteMarkdown') }}</span>
+        </div>
         <div class="toolbarBtn" @click="$bus.$emit('showImport')">
           <span class="icon iconfont icondaoru"></span>
           <span class="text">{{ $t('toolbar.import') }}</span>
@@ -126,6 +130,9 @@ import exampleData from 'simple-mind-map/example/exampleData'
 import { getData } from '../../../api'
 import ToolbarNodeBtnList from './ToolbarNodeBtnList.vue'
 import { throttle, isMobile } from 'simple-mind-map/src/utils/index'
+import markdown from 'simple-mind-map/src/parse/markdown.js'
+import { applyInlineMarkdownToTree } from '@/utils'
+import { storeData } from '@/api'
 
 // 工具栏
 let fileHandle = null
@@ -499,6 +506,42 @@ export default {
     onNodeNoteDblclick(node, e) {
       e.stopPropagation()
       this.$bus.$emit('showNodeNote', node)
+    },
+
+    // 粘贴导入 Markdown
+    async onPasteMarkdown() {
+      // 仅从剪贴板读取并替换内容
+      if (!(navigator.clipboard && navigator.clipboard.readText)) {
+        this.$message.error(this.$t('outline.clipboardNotSupported') || '浏览器不支持剪贴板读取')
+        return
+      }
+      let md = ''
+      try {
+        md = await navigator.clipboard.readText()
+      } catch (err) {
+        this.$message.error(this.$t('outline.clipboardReadFail') || '读取剪贴板失败')
+        return
+      }
+      if (!md || !md.trim()) {
+        this.$message.warning(this.$t('outline.clipboardEmpty') || '剪贴板为空或未包含 Markdown 列表')
+        return
+      }
+      try {
+        const res = markdown.transformMarkdownTo(md)
+        let root = res.root || res
+        // 将行内 Markdown (粗体/斜体) 转为富文本并在节点上标记
+        try {
+          applyInlineMarkdownToTree(root)
+        } catch (err) {
+          console.error('applyInlineMarkdownToTree fail', err)
+        }
+        this.$bus.$emit('setData', root)
+        storeData({ root })
+        this.$message.success(this.$t('outline.importSuccess') || '导入成功')
+      } catch (e) {
+        console.error(e)
+        this.$message.error(this.$t('outline.importFail') || '导入失败')
+      }
     }
   }
 }

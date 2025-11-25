@@ -243,7 +243,12 @@ export default {
     print: 'Print',
     fullscreen: 'Fullscreen',
     copyToMarkdown: 'Copy to Markdown',
-    pasteFromMarkdown: "Paste From Markdown"
+    pasteFromMarkdown: "Paste From Markdown",
+    clipboardNotSupported: 'Browser does not support clipboard reading',
+    clipboardReadFail: 'Failed to read clipboard',
+    clipboardEmpty: 'Clipboard is empty or does not contain Markdown list',
+    importSuccess: 'Import successful',
+    importFail: 'Import failed'
   },
   scale: {
     zoomIn: 'Zoom in',
@@ -354,7 +359,8 @@ export default {
       'Please export the currently edited file before creating a new one, Beware of content loss',
     openFileTip:
       'Please export the currently edited file before opening it, Beware of content loss',
-    ai: 'AI'
+    ai: 'AI',
+    pasteMarkdown: 'Paste Markdown'
   },
   edit: {
     newFeatureNoticeTitle: 'New feature reminder',
