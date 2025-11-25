@@ -241,7 +241,9 @@ export default {
     title: 'Outline',
     nodeDefaultText: 'Branch node',
     print: 'Print',
-    fullscreen: 'Fullscreen'
+    fullscreen: 'Fullscreen',
+    copyToMarkdown: 'Copy to Markdown',
+    pasteFromMarkdown: "Paste From Markdown"
   },
   scale: {
     zoomIn: 'Zoom in',

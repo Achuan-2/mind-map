@@ -236,7 +236,9 @@ export default {
     title: '大綱',
     nodeDefaultText: '分支節點',
     print: '打印',
-    fullscreen: '全屏'
+    fullscreen: '全屏',
+    copyToMarkdown: 'Copy to Markdown',
+    pasteFromMarkdown: "Paste From Markdown"
   },
   scale: {
     zoomIn: '放大',
