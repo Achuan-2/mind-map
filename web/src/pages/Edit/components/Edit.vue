@@ -235,6 +235,7 @@ export default {
     this.$bus.$on('paddingChange', this.onPaddingChange)
     this.$bus.$on('export', this.export)
     this.$bus.$on('setData', this.setData)
+    this.$bus.$on('updateData', this.updateData)
     this.$bus.$on('startTextEdit', this.handleStartTextEdit)
     this.$bus.$on('endTextEdit', this.handleEndTextEdit)
     this.$bus.$on('createAssociativeLine', this.handleCreateLineFromActiveNode)
@@ -250,6 +251,7 @@ export default {
     this.$bus.$off('paddingChange', this.onPaddingChange)
     this.$bus.$off('export', this.export)
     this.$bus.$off('setData', this.setData)
+    this.$bus.$off('updateData', this.updateData)
     this.$bus.$off('startTextEdit', this.handleStartTextEdit)
     this.$bus.$off('endTextEdit', this.handleEndTextEdit)
     this.$bus.$off('createAssociativeLine', this.handleCreateLineFromActiveNode)
@@ -529,6 +531,30 @@ export default {
       this.manualSave()
       // 如果导入的是富文本内容，那么自动开启富文本模式
       if (rootNodeData.data.richText && !this.openNodeRichText) {
+        this.$bus.$emit('toggleOpenNodeRichText', true)
+        this.$notify.info({
+          title: this.$t('edit.tip'),
+          message: this.$t('edit.autoOpenNodeRichTextTip')
+        })
+      }
+    },
+
+    // 动态更新（带历史，可撤回）思维导图数据
+    updateData(data) {
+      this.handleShowLoading()
+      let rootNodeData = null
+      if (data.root) {
+        // updateData expects the root tree; pass root
+        this.mindMap.updateData(data.root)
+        rootNodeData = data.root
+      } else {
+        this.mindMap.updateData(data)
+        rootNodeData = data
+      }
+      // keep behavior consistent with setData: reset view and store
+      this.mindMap.view.reset()
+      this.manualSave()
+      if (rootNodeData.data && rootNodeData.data.richText && !this.openNodeRichText) {
         this.$bus.$emit('toggleOpenNodeRichText', true)
         this.$notify.info({
           title: this.$t('edit.tip'),
