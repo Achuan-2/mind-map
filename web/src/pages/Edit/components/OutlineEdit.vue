@@ -54,6 +54,7 @@
             class="customNode"
             slot-scope="{ node, data }"
             :data-id="data.uid"
+            @contextmenu.prevent="showContextMenu($event, node)"
           >
             <span
               class="nodeEdit"
@@ -67,6 +68,16 @@
             ></span>
           </span>
         </el-tree>
+        <div
+          v-if="contextMenu && contextMenu.show"
+          class="outline-context-menu"
+          :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+        >
+          <div class="item" @click="ctxInsertChild(contextMenu.nodeData)">新建子节点</div>
+          <div class="item" @click="ctxInsertBefore(contextMenu.nodeData)">在上方插入</div>
+          <div class="item" @click="ctxInsertAfter(contextMenu.nodeData)">在下方插入</div>
+          <div class="item delete" @click="ctxDelete(contextMenu.nodeData)">删除</div>
+        </div>
       </div>
     </div>
   </div>
@@ -100,6 +111,12 @@ export default {
         label: 'label'
       },
       currentData: null
+      ,contextMenu: {
+        show: false,
+        x: 0,
+        y: 0,
+        nodeData: null
+      }
     }
   },
   computed: {
@@ -121,12 +138,26 @@ export default {
   },
   created() {
     window.addEventListener('keydown', this.onKeyDown)
+    window.addEventListener('click', this.hideContextMenu)
   },
   beforeDestroy() {
     window.removeEventListener('keydown', this.onKeyDown)
+    window.removeEventListener('click', this.hideContextMenu)
   },
   methods: {
     ...mapMutations(['setIsOutlineEdit']),
+
+    showContextMenu(e, nodeData) {
+      e.preventDefault()
+      this.contextMenu.show = true
+      this.contextMenu.x = e.clientX
+      this.contextMenu.y = e.clientY
+      this.contextMenu.nodeData = nodeData
+    },
+
+    hideContextMenu() {
+      if (this.contextMenu) this.contextMenu.show = false
+    },
 
     // 刷新树数据
     refresh() {
@@ -177,6 +208,115 @@ export default {
       node.data.data.text = richText ? textToNodeRichTextWithWrap(text) : text
       node.data.textCache = e.target.innerHTML
       this.save()
+    },
+
+    // 右键菜单：插入下方同级
+    ctxInsertAfter(nodeData) {
+      const richText = !!nodeData.data.richText
+      const uid = createUid()
+      const text = this.$t('outline.nodeDefaultText')
+      const data = {
+        textCache: text,
+        uid,
+        label: text,
+        data: {
+          text: richText ? textToNodeRichTextWithWrap(text) : text,
+          uid,
+          richText
+        },
+        children: []
+      }
+      this.$refs.tree.insertAfter(data, nodeData)
+      this.save()
+      this.hideContextMenu()
+      this.$nextTick(() => {
+        this.$refs.tree.setCurrentKey(uid)
+        const el = document.querySelector(`.customNode[data-id="${uid}"] .nodeEdit`)
+        if (el) {
+          let selection = window.getSelection()
+          let range = document.createRange()
+          range.selectNodeContents(el)
+          selection.removeAllRanges()
+          selection.addRange(range)
+          let offsetTop = el.offsetTop
+          this.scrollTo(offsetTop)
+        }
+      })
+    },
+
+    // 右键菜单：插入上方同级
+    ctxInsertBefore(nodeData) {
+      const richText = !!nodeData.data.richText
+      const uid = createUid()
+      const text = this.$t('outline.nodeDefaultText')
+      const data = {
+        textCache: text,
+        uid,
+        label: text,
+        data: {
+          text: richText ? textToNodeRichTextWithWrap(text) : text,
+          uid,
+          richText
+        },
+        children: []
+      }
+      this.$refs.tree.insertBefore(data, nodeData)
+      this.save()
+      this.hideContextMenu()
+      this.$nextTick(() => {
+        this.$refs.tree.setCurrentKey(uid)
+        const el = document.querySelector(`.customNode[data-id="${uid}"] .nodeEdit`)
+        if (el) {
+          let selection = window.getSelection()
+          let range = document.createRange()
+          range.selectNodeContents(el)
+          selection.removeAllRanges()
+          selection.addRange(range)
+          let offsetTop = el.offsetTop
+          this.scrollTo(offsetTop)
+        }
+      })
+    },
+
+    // 右键菜单：插入子节点
+    ctxInsertChild(nodeData) {
+      const richText = !!nodeData.data.richText
+      const uid = createUid()
+      const text = this.$t('outline.nodeDefaultText')
+      const data = {
+        textCache: text,
+        uid,
+        label: text,
+        data: {
+          text: richText ? textToNodeRichTextWithWrap(text) : text,
+          uid,
+          richText
+        },
+        children: []
+      }
+      this.$refs.tree.append(data, nodeData)
+      this.save()
+      this.hideContextMenu()
+      this.$nextTick(() => {
+        this.$refs.tree.setCurrentKey(uid)
+        const el = document.querySelector(`.customNode[data-id="${uid}"] .nodeEdit`)
+        if (el) {
+          let selection = window.getSelection()
+          let range = document.createRange()
+          range.selectNodeContents(el)
+          selection.removeAllRanges()
+          selection.addRange(range)
+          let offsetTop = el.offsetTop
+          this.scrollTo(offsetTop)
+        }
+      })
+    },
+
+    // 右键菜单：删除
+    ctxDelete(nodeData) {
+      this.$refs.tree.remove(nodeData)
+      this.save()
+      this.hideContextMenu()
     },
 
     // 节点输入区域按键事件
@@ -390,4 +530,22 @@ export default {
 </style>
 <style lang="less" scoped>
 @import url('../../../style/outlineTree.less');
+</style>
+
+<style lang="less" scoped>
+.outline-context-menu {
+  position: fixed;
+  z-index: 3000;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.12);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  min-width: 140px;
+  color: #333;
+}
+.outline-context-menu .item {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.outline-context-menu .item:hover { background: #f5f5f5 }
+.outline-context-menu .item.delete { color: #f56c6c }
 </style>
