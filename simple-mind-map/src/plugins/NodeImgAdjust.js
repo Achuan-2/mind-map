@@ -7,6 +7,7 @@ class NodeImgAdjust {
   constructor({ mindMap }) {
     this.mindMap = mindMap
     this.handleEl = null // 自定义元素，用来渲染临时图片、调整按钮
+    this.resizeBtnEl = null // 调整按钮元素
     this.isShowHandleEl = false // 自定义元素是否在显示中
     this.node = null // 当前节点实例
     this.img = null // 当前节点的图片节点
@@ -21,6 +22,7 @@ class NodeImgAdjust {
     this.currentImgWidth = 0 // 当前拖拽实时图片的大小
     this.currentImgHeight = 0
     this.isAdjusted = false // 是否是拖拽结束后的渲染期间
+    this.referenceWidths = [] // 参考宽度列表
     this.bindEvent()
   }
 
@@ -164,6 +166,7 @@ class NodeImgAdjust {
       cursor: nwse-resize;
     `
     btnEl.className = 'node-image-resize'
+    this.resizeBtnEl = btnEl
     // 给按钮元素绑定事件
     btnEl.addEventListener('mouseenter', () => {
       // 移入按钮，会触发节点图片的移出事件，所以需要再次显示按钮
@@ -240,6 +243,26 @@ class NodeImgAdjust {
     this.mousedownOffset.y = e.clientY - this.rect.y2
     // 将节点图片渲染到自定义元素上
     this.handleEl.style.backgroundImage = `url(${this.node.getData('image')})`
+    // 收集参考宽度
+    this.referenceWidths = this.collectImageWidths()
+  }
+
+  // 收集所有带图片节点的宽度
+  collectImageWidths() {
+    const widths = new Set()
+    const walk = node => {
+      if (node.getData('image') && node !== this.node) {
+        const { width } = node.getData('imageSize') || {}
+        if (width) widths.add(width)
+      }
+      if (node.children) {
+        node.children.forEach(walk)
+      }
+    }
+    if (this.mindMap.renderer.root) {
+      walk(this.mindMap.renderer.root)
+    }
+    return Array.from(widths)
   }
 
   // 鼠标移动
@@ -281,6 +304,30 @@ class NodeImgAdjust {
     // 计算当前拖拽位置对应的图片的实时大小
     let newWidth = Math.abs(e.clientX - this.rect.x - this.mousedownOffset.x)
     let newHeight = Math.abs(e.clientY - this.rect.y - this.mousedownOffset.y)
+
+    // 吸附逻辑
+    const SNAP_THRESHOLD = 5
+    let snapped = false
+    for (const width of this.referenceWidths) {
+      const screenWidth = width * scaleX
+      if (Math.abs(newWidth - screenWidth) <= SNAP_THRESHOLD) {
+        newWidth = screenWidth
+        snapped = true
+        break
+      }
+    }
+    // 如果吸附了，根据宽高比调整高度
+    if (snapped) {
+      newHeight = newWidth / oRatio
+      if (this.resizeBtnEl) {
+        this.resizeBtnEl.style.backgroundColor = '#409eff'
+      }
+    } else {
+      if (this.resizeBtnEl) {
+        this.resizeBtnEl.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
+      }
+    }
+
     // 限制最小值
     if (newWidth < minImgResizeWidth) newWidth = minImgResizeWidth
     if (newHeight < minImgResizeHeight) newHeight = minImgResizeHeight
@@ -305,6 +352,10 @@ class NodeImgAdjust {
     this.showNodeImage()
     // 隐藏自定义元素
     this.hideHandleEl()
+    // 重置按钮颜色
+    if (this.resizeBtnEl) {
+      this.resizeBtnEl.style.backgroundColor = 'rgba(0, 0, 0, 0.3)'
+    }
     // 更新节点图片为新的大小
     const { image, imageTitle } = this.node.getData()
     const { scaleX, scaleY } = this.mousedownDrawTransform
