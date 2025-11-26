@@ -1196,7 +1196,9 @@ class Render {
     this.beingCopyData = this.copyNode()
     if (!this.beingCopyData) return
     if (!this.mindMap.opt.disabledClipboard) {
-      setDataToClipboard(createSmmFormatData(this.beingCopyData))
+      // 收集复制节点中的图片key，并获取对应的base64数据
+      const imgMap = this.collectImagesFromNodes(this.beingCopyData)
+      setDataToClipboard(createSmmFormatData(this.beingCopyData, imgMap))
     }
   }
 
@@ -1205,7 +1207,9 @@ class Render {
     this.mindMap.execCommand('CUT_NODE', copyData => {
       this.beingCopyData = copyData
       if (!this.mindMap.opt.disabledClipboard) {
-        setDataToClipboard(createSmmFormatData(copyData))
+        // 收集剪切节点中的图片key，并获取对应的base64数据
+        const imgMap = this.collectImagesFromNodes(copyData)
+        setDataToClipboard(createSmmFormatData(copyData, imgMap))
       }
     })
   }
@@ -1259,6 +1263,10 @@ class Render {
                 const checkRes = checkSmmFormatData(res)
                 if (checkRes.isSmm) {
                   smmData = checkRes.data
+                  // 合并imgMap到当前画布
+                  if (checkRes.imgMap && Object.keys(checkRes.imgMap).length > 0) {
+                    this.mergeImgMapToCanvas(checkRes.imgMap)
+                  }
                 } else {
                   text = checkRes.data
                 }
@@ -1275,6 +1283,10 @@ class Render {
             const checkRes = checkSmmFormatData(text)
             if (checkRes.isSmm) {
               smmData = checkRes.data
+              // 合并imgMap到当前画布
+              if (checkRes.imgMap && Object.keys(checkRes.imgMap).length > 0) {
+                this.mergeImgMapToCanvas(checkRes.imgMap)
+              }
             } else {
               text = checkRes.data
             }
@@ -1556,6 +1568,64 @@ class Render {
       return copyNodeTree({}, node, true)
     })
   }
+
+  // 收集节点树中的所有图片key及其对应的base64数据
+  collectImagesFromNodes(nodeList) {
+    if (!nodeList || nodeList.length === 0) return {}
+    
+    const renderTree = this.mindMap.renderer.renderTree
+    if (!renderTree || !renderTree.data.imgMap) return {}
+    
+    const rootImgMap = renderTree.data.imgMap
+    const collectedImgMap = {}
+    
+    // 递归遍历节点树，收集所有图片key
+    const walkNodes = (nodes) => {
+      if (!Array.isArray(nodes)) nodes = [nodes]
+      
+      nodes.forEach(node => {
+        const image = node.data && node.data.image
+        if (image && /^smm_img_key_/.test(image)) {
+          // 如果是图片key，且在根节点的imgMap中存在，则收集
+          if (rootImgMap[image]) {
+            collectedImgMap[image] = rootImgMap[image]
+          }
+        }
+        
+        // 递归处理子节点
+        if (node.children && node.children.length > 0) {
+          walkNodes(node.children)
+        }
+      })
+    }
+    
+    walkNodes(nodeList)
+    return collectedImgMap
+  }
+
+  // 将剪贴板中的imgMap合并到当前画布的imgMap中
+  mergeImgMapToCanvas(clipboardImgMap) {
+    if (!clipboardImgMap || Object.keys(clipboardImgMap).length === 0) return
+    
+    const renderTree = this.mindMap.renderer.renderTree
+    if (!renderTree) return
+    
+    // 确保根节点有imgMap
+    if (!renderTree.data.imgMap) {
+      renderTree.data.imgMap = {}
+    }
+    
+    const currentImgMap = renderTree.data.imgMap
+    
+    // 遍历剪贴板中的imgMap，将不存在的key添加到当前画布
+    Object.keys(clipboardImgMap).forEach(key => {
+      // 如果当前画布的imgMap中没有这个key，则添加
+      if (!currentImgMap[key]) {
+        currentImgMap[key] = clipboardImgMap[key]
+      }
+    })
+  }
+
 
   //  剪切节点
   cutNode(callback) {
