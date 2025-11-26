@@ -45,6 +45,10 @@ class Select {
     if (readonly) {
       return
     }
+    // 如果按住空格，则取消框选功能（Space + Left 用于拖动画布）
+    if (this.mindMap.event && this.mindMap.event.isSpaceKeyDown) {
+      return
+    }
     let { useLeftKeySelectionRightKeyDrag } = this.mindMap.opt
     if (
       !(e.ctrlKey || e.metaKey) &&
@@ -66,6 +70,15 @@ class Select {
   // 鼠标移动
   onMousemove(e) {
     if (this.mindMap.opt.readonly) {
+      return
+    }
+    // 如果在移动过程中检测到空格按下，则取消当前框选，交由画布拖动处理
+    if (this.mindMap.event && this.mindMap.event.isSpaceKeyDown) {
+      if (this.rect) this.rect.remove()
+      this.rect = null
+      this.isMousedown = false
+      this.isSelecting = false
+      this.cacheActiveList = []
       return
     }
     if (!this.isMousedown) {

@@ -11,6 +11,7 @@ class Event extends EventEmitter {
     this.isLeftMousedown = false
     this.isRightMousedown = false
     this.isMiddleMousedown = false
+    this.isSpaceKeyDown = false
     this.mousedownPos = {
       x: 0,
       y: 0
@@ -40,6 +41,7 @@ class Event extends EventEmitter {
     this.onContextmenu = this.onContextmenu.bind(this)
     this.onSvgMousedown = this.onSvgMousedown.bind(this)
     this.onKeyup = this.onKeyup.bind(this)
+    this.onKeydown = this.onKeydown.bind(this)
     this.onMouseenter = this.onMouseenter.bind(this)
     this.onMouseleave = this.onMouseleave.bind(this)
   }
@@ -59,6 +61,7 @@ class Event extends EventEmitter {
     this.mindMap.svg.on('mouseenter', this.onMouseenter)
     this.mindMap.svg.on('mouseleave', this.onMouseleave)
     window.addEventListener('keyup', this.onKeyup)
+    window.addEventListener('keydown', this.onKeydown)
   }
 
   //  解绑事件
@@ -75,6 +78,7 @@ class Event extends EventEmitter {
     this.mindMap.svg.off('mouseenter', this.onMouseenter)
     this.mindMap.svg.off('mouseleave', this.onMouseleave)
     window.removeEventListener('keyup', this.onKeyup)
+    window.removeEventListener('keydown', this.onKeydown)
   }
 
   //   画布的单击事件
@@ -124,7 +128,9 @@ class Event extends EventEmitter {
       this.isMiddleMousedown ||
       (useLeftKeySelectionRightKeyDrag
         ? this.isRightMousedown
-        : this.isLeftMousedown)
+        : this.isLeftMousedown) ||
+      // 支持按住空格 + 左键拖动画布
+      (this.isSpaceKeyDown && this.isLeftMousedown)
     ) {
       e.preventDefault()
       this.emit('drag', e, this)
@@ -178,7 +184,21 @@ class Event extends EventEmitter {
 
   //  按键松开事件
   onKeyup(e) {
+    // 释放空格键时清理状态
+    if (e.code === 'Space' || e.key === ' ') {
+      this.isSpaceKeyDown = false
+    }
     this.emit('keyup', e)
+  }
+
+  //  按键按下事件（用于检测空格）
+  onKeydown(e) {
+    if (e.code === 'Space' || e.key === ' ') {
+      this.isSpaceKeyDown = true
+      // 阻止页面默认滚动行为（在某些浏览器/场景下）
+      e.preventDefault()
+    }
+    this.emit('keydown', e)
   }
 
   // 进入
