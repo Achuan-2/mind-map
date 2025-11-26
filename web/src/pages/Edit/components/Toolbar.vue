@@ -540,6 +540,11 @@ export default {
               children: res.data
             }
           }
+          // 标记为新版本数据，避免富文本插件误判为旧版并转换/转义文本
+          // 这样能保证 Markdown 解析出的富文本 HTML 不会在 updateData 流程中被丢失
+          try {
+            root.smmVersion = '0.13.0'
+          } catch (e) {}
           this.$bus.$emit('updateData', root)
           storeData({ root })
           this.$message.success(this.$t('outline.importSuccess') || '导入成功')
