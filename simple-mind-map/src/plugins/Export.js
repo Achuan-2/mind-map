@@ -395,12 +395,47 @@ class Export {
 
   // 导出指定节点，如果该节点是激活状态，那么取消激活和隐藏展开收起按钮
   handleNodeExport(node) {
-    if (node && node.getData('isActive')) {
-      node.deactivate()
-      const { alwaysShowExpandBtn, notShowExpandBtn } = this.mindMap.opt
-      if (!alwaysShowExpandBtn && !notShowExpandBtn && node.getData('expand')) {
-        node.removeExpandBtn()
+    if (!node) return
+    try {
+      let isActive = false
+      let expand = false
+
+      const hasGetData = node && typeof node.getData === 'function'
+      if (hasGetData) {
+        try {
+          isActive = Boolean(node.getData('isActive'))
+        } catch (e) {
+          isActive = false
+        }
+        try {
+          expand = Boolean(node.getData('expand'))
+        } catch (e) {
+          expand = false
+        }
+      } else if (node && typeof node === 'object') {
+        if ('isActive' in node) {
+          isActive = Boolean(node.isActive || (node.data && node.data.isActive))
+        } else if (node.data && 'isActive' in node.data) {
+          isActive = Boolean(node.data.isActive)
+        }
+        if ('expand' in node) {
+          expand = Boolean(node.expand || (node.data && node.data.expand))
+        } else if (node.data && 'expand' in node.data) {
+          expand = Boolean(node.data.expand)
+        }
       }
+
+      if (!isActive) return
+
+      if (typeof node.deactivate === 'function') node.deactivate()
+      const { alwaysShowExpandBtn, notShowExpandBtn } = this.mindMap.opt || {}
+      if (!alwaysShowExpandBtn && !notShowExpandBtn) {
+        if (expand && typeof node.removeExpandBtn === 'function') {
+          node.removeExpandBtn()
+        }
+      }
+    } catch (e) {
+      // 若调用过程中仍有异常，捕获并忽略，导出流程继续
     }
   }
 
