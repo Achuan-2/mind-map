@@ -259,7 +259,7 @@ export default {
             data.smmVersion = '0.13.0'
           } catch (e) {}
 
-          this.$bus.$emit('setData', data)
+          this.$bus.$emit('updateData', data)
           this.$message.success(this.$t('import.importSuccess'))
         } catch (error) {
           console.log(error)
