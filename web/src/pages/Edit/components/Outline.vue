@@ -1,4 +1,5 @@
 <template>
+  <div class="outlineRoot">
   <el-tree
     ref="tree"
     class="outlineTree"
@@ -23,6 +24,7 @@
       slot-scope="{ node, data }"
       :data-id="data.uid"
       @click="onClick(data)"
+      @contextmenu.prevent="showContextMenu($event, data)"
     >
       <span
         class="nodeEdit"
@@ -36,6 +38,17 @@
       ></span>
     </span>
   </el-tree>
+  <div
+    v-if="contextMenu && contextMenu.show"
+    class="outline-context-menu"
+    :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+  >
+    <div class="item" @click="ctxInsertChild(contextMenu.nodeData)">新建子节点</div>
+    <div class="item" @click="ctxInsertBefore(contextMenu.nodeData)">在上方插入</div>
+    <div class="item" @click="ctxInsertAfter(contextMenu.nodeData)">在下方插入</div>
+    <div class="item delete" @click="ctxDelete(contextMenu.nodeData)">删除</div>
+  </div>
+  </div>
 </template>
 
 <script>
@@ -66,8 +79,16 @@ export default {
       isHandleNodeTreeRenderEnd: false,
       beInsertNodeUid: '',
       insertType: '',
+      insertTargetUid: '',
+      insertPlace: '',
       isInTreArea: false,
-      isAfterCreateNewNode: false
+      isAfterCreateNewNode: false,
+      contextMenu: {
+        show: false,
+        x: 0,
+        y: 0,
+        nodeData: null
+      }
     }
   },
   computed: {
@@ -81,6 +102,7 @@ export default {
     this.$bus.$on('data_change', this.handleDataChange)
     this.$bus.$on('node_tree_render_end', this.handleNodeTreeRenderEnd)
     this.$bus.$on('hide_text_edit', this.handleHideTextEdit)
+    window.addEventListener('click', this.hideContextMenu)
   },
   mounted() {
     this.refresh()
@@ -90,9 +112,23 @@ export default {
     this.$bus.$off('data_change', this.handleDataChange)
     this.$bus.$off('node_tree_render_end', this.handleNodeTreeRenderEnd)
     this.$bus.$off('hide_text_edit', this.handleHideTextEdit)
+    window.removeEventListener('click', this.hideContextMenu)
   },
   methods: {
     ...mapMutations(['setIsDragOutlineTreeNode']),
+
+    // 右键菜单状态
+    showContextMenu(e, nodeData) {
+      e.preventDefault()
+      this.contextMenu.show = true
+      this.contextMenu.x = e.clientX
+      this.contextMenu.y = e.clientY
+      this.contextMenu.nodeData = nodeData
+    },
+
+    hideContextMenu() {
+      if (this.contextMenu) this.contextMenu.show = false
+    },
 
     handleHideTextEdit() {
       if (this.notHandleDataChange) {
@@ -121,6 +157,24 @@ export default {
         this[this.insertType]()
         this.insertType = ''
         return
+      }
+      // 如果是通过右键菜单触发并且需要在创建后移动新节点到指定位置
+      if (this.insertPlace) {
+        try {
+          const newNode = this.mindMap.renderer.findNodeByUid(this.beInsertNodeUid)
+          const targetNode = this.mindMap.renderer.findNodeByUid(this.insertTargetUid)
+          if (newNode && targetNode) {
+            if (this.insertPlace === 'before') {
+              this.mindMap.execCommand('INSERT_BEFORE', newNode, targetNode)
+            } else if (this.insertPlace === 'after') {
+              this.mindMap.execCommand('INSERT_AFTER', newNode, targetNode)
+            }
+          }
+        } catch (e) {
+          console.log(e)
+        }
+        this.insertPlace = ''
+        this.insertTargetUid = ''
       }
       // 插入了新节点后需要做一些操作
       if (this.isHandleNodeTreeRenderEnd) {
@@ -315,6 +369,51 @@ export default {
       }
     },
 
+    // 右键菜单操作 — 在下方插入同级节点
+    ctxInsertAfter(nodeData) {
+      this.notHandleDataChange = true
+      this.isHandleNodeTreeRenderEnd = true
+      this.beInsertNodeUid = createUid()
+      this.insertTargetUid = nodeData.uid
+      this.insertPlace = 'after'
+      // 调用默认插入兄弟节点（通常是插入在当前所在位置后面）
+      this.mindMap.execCommand('INSERT_NODE', false, [], { uid: this.beInsertNodeUid })
+      this.hideContextMenu()
+    },
+
+    // 右键菜单操作 — 在上方插入同级节点
+    ctxInsertBefore(nodeData) {
+      this.notHandleDataChange = true
+      this.isHandleNodeTreeRenderEnd = true
+      this.beInsertNodeUid = createUid()
+      this.insertTargetUid = nodeData.uid
+      this.insertPlace = 'before'
+      this.mindMap.execCommand('INSERT_NODE', false, [], { uid: this.beInsertNodeUid })
+      this.hideContextMenu()
+    },
+
+    // 右键菜单操作 — 新建子节点
+    ctxInsertChild(nodeData) {
+      this.notHandleDataChange = true
+      this.isHandleNodeTreeRenderEnd = true
+      this.beInsertNodeUid = createUid()
+      this.insertTargetUid = nodeData.uid
+      this.insertPlace = 'child'
+      this.mindMap.execCommand('INSERT_CHILD_NODE', false, [], { uid: this.beInsertNodeUid })
+      this.hideContextMenu()
+    },
+
+    // 右键菜单操作 — 删除
+    ctxDelete(nodeData) {
+      const node = this.mindMap.renderer.findNodeByUid(nodeData.uid)
+      if (node && !node.isRoot) {
+        this.notHandleDataChange = true
+        this.$refs.tree.remove(nodeData)
+        this.mindMap.execCommand('REMOVE_NODE', [node])
+      }
+      this.hideContextMenu()
+    },
+
     // 当前选中的树节点变化事件
     onCurrentChange(data) {
       this.currentData = data
@@ -353,4 +452,22 @@ export default {
 </style>
 <style lang="less" scoped>
 @import url('../../../style/outlineTree.less');
+</style>
+
+<style lang="less" scoped>
+.outline-context-menu {
+  position: fixed;
+  z-index: 3000;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.12);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  min-width: 140px;
+  color: #333;
+}
+.outline-context-menu .item {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.outline-context-menu .item:hover { background: #f5f5f5 }
+.outline-context-menu .item.delete { color: #f56c6c }
 </style>
