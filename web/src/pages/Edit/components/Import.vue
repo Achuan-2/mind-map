@@ -253,7 +253,12 @@ export default {
             // 如果只有一个顶级节点,直接使用它
             data = data.children[0]
           }
-          
+
+          // 标记为新版本数据，避免富文本插件误判为旧版并转换/转义文本
+          try {
+            data.smmVersion = '0.13.0'
+          } catch (e) {}
+
           this.$bus.$emit('setData', data)
           this.$message.success(this.$t('import.importSuccess'))
         } catch (error) {

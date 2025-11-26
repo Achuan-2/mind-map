@@ -305,7 +305,7 @@ export const debounce = (fn, wait = 300, ctx) => {
 }
 
 //  异步执行任务队列
-export const asyncRun = (taskList, callback = () => {}) => {
+export const asyncRun = (taskList, callback = () => { }) => {
   let index = 0
   let len = taskList.length
   if (len <= 0) {
@@ -361,9 +361,8 @@ export const measureText = (text, { italic, bold, fontSize, fontFamily }) => {
 
 // 拼接font字符串
 export const joinFontStr = ({ italic, bold, fontSize, fontFamily }) => {
-  return `${italic ? 'italic ' : ''} ${
-    bold ? 'bold ' : ''
-  } ${fontSize}px ${fontFamily} `
+  return `${italic ? 'italic ' : ''} ${bold ? 'bold ' : ''
+    } ${fontSize}px ${fontFamily} `
 }
 
 //  在下一个事件循环里执行任务
@@ -561,7 +560,7 @@ export const checkIsRichText = str => {
     checkIsRichTextEl = document.createElement('div')
   }
   checkIsRichTextEl.innerHTML = str
-  for (let c = checkIsRichTextEl.childNodes, i = c.length; i--; ) {
+  for (let c = checkIsRichTextEl.childNodes, i = c.length; i--;) {
     if (c[i].nodeType == 1) return true
   }
   return false
@@ -993,47 +992,6 @@ export const addDataToAppointNodes = (appointNodes, data = {}) => {
       }
     })
   }
-  range.selectNodeContents(el)
-  selection.removeAllRanges()
-  selection.addRange(range)
-}
-
-// 给指定的节点列表树数据添加附加数据，会修改原数据
-export const addDataToAppointNodes = (appointNodes, data = {}) => {
-  data = { ...data }
-  const alreadyIsRichText = data && data.richText
-  // 如果指定的数据就是富文本格式，那么不需要重新创建
-  if (alreadyIsRichText && data.resetRichText) {
-    delete data.resetRichText
-  }
-  const walk = list => {
-    list.forEach(node => {
-      node.data = {
-        ...node.data,
-        ...data
-      }
-      if (node.children && node.children.length > 0) {
-        walk(node.children)
-      }
-    })
-  }
-  walk(appointNodes)
-  const alreadyIsRichText = data && data.richText
-  // 如果指定的数据就是富文本格式，那么不需要重新创建
-  if (alreadyIsRichText && data.resetRichText) {
-    delete data.resetRichText
-  }
-  const walk = list => {
-    list.forEach(node => {
-      node.data = {
-        ...node.data,
-        ...data
-      }
-      if (node.children && node.children.length > 0) {
-        walk(node.children)
-      }
-    })
-  }
   walk(appointNodes)
   return appointNodes
 }
@@ -1082,8 +1040,8 @@ export const formatDataToArray = data => {
 export const getNodeDataIndex = node => {
   return node.parent
     ? node.parent.nodeData.children.findIndex(item => {
-        return item.data.uid === node.uid
-      })
+      return item.data.uid === node.uid
+    })
     : 0
 }
 
@@ -1268,7 +1226,7 @@ export const checkSmmFormatData = data => {
         smmData = parsedData.data
         imgMap = parsedData.imgMap || {}
       }
-    } catch (error) {}
+    } catch (error) { }
   } else if (typeof data === 'object' && data.simpleMindMap) {
     // 否则如果是对象，则检查属性标志
     smmData = data.data
@@ -1527,7 +1485,7 @@ export const getNodeTreeBoundingRect = (
         if (y + height > maxY) {
           maxY = y + height
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     if (!excludeGeneralization && root._generalizationList.length > 0) {
       root._generalizationList.forEach(item => {
