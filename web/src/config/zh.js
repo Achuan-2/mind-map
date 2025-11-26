@@ -404,6 +404,12 @@ export const shortcutKeyList = [
         name: '适应画布',
         value: `${ctrl} + i`
       }
+      ,
+      {
+        icon: 'iconquanping1',
+        name: '拖动画布',
+        value: `Space + 鼠标左键`
+      }
     ]
   },
   {

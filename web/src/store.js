@@ -13,7 +13,7 @@ const store = new Vuex.Store({
       // 是否开启节点富文本
       openNodeRichText: true,
       // 鼠标行为
-      useLeftKeySelectionRightKeyDrag: false,
+      useLeftKeySelectionRightKeyDrag: true,
       // 是否显示滚动条
       isShowScrollbar: false,
       // 是否是暗黑模式
