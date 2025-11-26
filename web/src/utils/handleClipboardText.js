@@ -1,6 +1,5 @@
 import { imgToDataUrl } from 'simple-mind-map/src/utils/index'
 import markdown from 'simple-mind-map/src/parse/markdown.js'
-import { transformMarkdownListToDataWithRich } from './index.js'
 
 // 处理知犀
 const handleZHIXI = async data => {
@@ -92,29 +91,13 @@ const handleClipboardText = async text => {
   const trimText = text.trim()
   if (/^(\-|\*|\d+\.)\s/.test(trimText) || /^#+\s/.test(trimText)) {
     try {
-      // 优先使用简单的列表解析器，将列表项直接转换为子节点
-      const parsed = transformMarkdownListToDataWithRich(text)
-      if (parsed && parsed.children && parsed.children.length > 0) {
+      const res = await markdown.transformMarkdownToWithImages(text)
+      console.log(res)
+      if (res && res.children && res.children.length > 0) {
+        // 返回所有子节点,支持多节点粘贴
         return {
           simpleMindMap: true,
-          data: parsed.children
-        }
-      }
-
-      // 回退：使用原来的完整 Markdown 解析器
-      const res = markdown.transformMarkdownTo(text)
-      if (res) {
-        let root = res.root || res
-        if (root.children && root.children.length > 0) {
-          return {
-            simpleMindMap: true,
-            data: root.children
-          }
-        } else if (root.data) {
-          return {
-            simpleMindMap: true,
-            data: [root]
-          }
+          data: res.children
         }
       }
     } catch (e) {

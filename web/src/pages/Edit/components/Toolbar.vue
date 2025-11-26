@@ -131,7 +131,7 @@ import { getData } from '../../../api'
 import ToolbarNodeBtnList from './ToolbarNodeBtnList.vue'
 import { throttle, isMobile } from 'simple-mind-map/src/utils/index'
 import markdown from 'simple-mind-map/src/parse/markdown.js'
-import { applyInlineMarkdownToTree } from '@/utils'
+import handleClipboardText from '@/utils/handleClipboardText'
 import { storeData } from '@/api'
 
 // 工具栏
@@ -527,18 +527,25 @@ export default {
         return
       }
       try {
-        const res = markdown.transformMarkdownTo(md)
-        let root = res.root || res
-        // 将行内 Markdown (粗体/斜体) 转为富文本并在节点上标记
-        try {
-          applyInlineMarkdownToTree(root)
-        } catch (err) {
-          console.error('applyInlineMarkdownToTree fail', err)
+        const res = await handleClipboardText(md)
+        if (res.simpleMindMap && res.data) {
+          let root
+          if (Array.isArray(res.data) && res.data.length === 1) {
+            root = res.data[0]
+          } else {
+            root = {
+              data: {
+                text: '根节点'
+              },
+              children: res.data
+            }
+          }
+          this.$bus.$emit('updateData', root)
+          storeData({ root })
+          this.$message.success(this.$t('outline.importSuccess') || '导入成功')
+        } else {
+           this.$message.warning('未识别到有效的Markdown列表')
         }
-        // emit updateData so Edit.vue can apply it using mindMap.updateData (undoable)
-        this.$bus.$emit('updateData', root)
-        storeData({ root })
-        this.$message.success(this.$t('outline.importSuccess') || '导入成功')
       } catch (e) {
         console.error(e)
         this.$message.error(this.$t('outline.importFail') || '导入失败')

@@ -993,6 +993,47 @@ export const addDataToAppointNodes = (appointNodes, data = {}) => {
       }
     })
   }
+  range.selectNodeContents(el)
+  selection.removeAllRanges()
+  selection.addRange(range)
+}
+
+// 给指定的节点列表树数据添加附加数据，会修改原数据
+export const addDataToAppointNodes = (appointNodes, data = {}) => {
+  data = { ...data }
+  const alreadyIsRichText = data && data.richText
+  // 如果指定的数据就是富文本格式，那么不需要重新创建
+  if (alreadyIsRichText && data.resetRichText) {
+    delete data.resetRichText
+  }
+  const walk = list => {
+    list.forEach(node => {
+      node.data = {
+        ...node.data,
+        ...data
+      }
+      if (node.children && node.children.length > 0) {
+        walk(node.children)
+      }
+    })
+  }
+  walk(appointNodes)
+  const alreadyIsRichText = data && data.richText
+  // 如果指定的数据就是富文本格式，那么不需要重新创建
+  if (alreadyIsRichText && data.resetRichText) {
+    delete data.resetRichText
+  }
+  const walk = list => {
+    list.forEach(node => {
+      node.data = {
+        ...node.data,
+        ...data
+      }
+      if (node.children && node.children.length > 0) {
+        walk(node.children)
+      }
+    })
+  }
   walk(appointNodes)
   return appointNodes
 }
