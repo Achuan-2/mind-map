@@ -140,7 +140,8 @@ export default {
     aiCreate: 'AI续写',
     modifyNodeLink: '修改节点链接',
     linkToNode: '链接到指定节点',
-    removeNodeLink: '删除节点链接'
+    removeNodeLink: '删除节点链接',
+    setAsRootNode: '设置为根节点'
   },
   count: {
     words: '字数',

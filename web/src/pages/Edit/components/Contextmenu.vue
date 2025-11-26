@@ -92,6 +92,9 @@
         <span class="name">{{ $t('contextmenu.pasteNode') }}</span>
         <span class="desc">Ctrl + V</span>
       </div>
+      <div class="item" @click="exec('SET_AS_ROOT_NODE')">
+        <span class="name">{{ $t('contextmenu.setAsRootNode') || '设置为根节点' }}</span>
+      </div>
       <div class="item" @click="exec('COPY_NODE_TO_MARKDOWN')">
         <span class="name">{{ $t('contextmenu.copyNodeToMarkdown') }}</span>
       </div>
@@ -448,6 +451,38 @@ export default {
             this.$message.success(this.$t('contextmenu.copySuccess'))
           }
           break
+          case 'SET_AS_ROOT_NODE':
+            {
+              const getNodeData = node => {
+                return {
+                  data: { ...node.getData() },
+                  children: (node.children || []).map(child => getNodeData(child))
+                }
+              }
+              const data = getNodeData(this.node)
+              // 收集该节点树中使用到的图片 key -> base64 映射（如果有）
+              let imgMap = {}
+              try {
+                if (this.mindMap && this.mindMap.renderer && this.mindMap.renderer.collectImagesFromNodes) {
+                  imgMap = this.mindMap.renderer.collectImagesFromNodes([data]) || {}
+                }
+              } catch (e) {
+                console.error('collectImagesFromNodes error', e)
+              }
+              // 如果有 imgMap，则把它放到根节点的 data.imgMap 上以保留图片数据
+              if (imgMap && Object.keys(imgMap).length > 0) {
+                data.data = data.data || {}
+                data.data.imgMap = { ...(data.data.imgMap || {}), ...imgMap }
+              }
+              this.mindMap.updateData(data)
+              // 居中显示新的根节点
+              try {
+                this.mindMap.renderer.setRootNodeCenter()
+              } catch (e) {
+                // ignore
+              }
+            }
+            break
         case 'RETURN_CENTER':
           this.mindMap.renderer.setRootNodeCenter()
           break
