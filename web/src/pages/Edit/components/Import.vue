@@ -239,7 +239,21 @@ export default {
       fileReader.readAsText(file.raw)
       fileReader.onload = async evt => {
         try {
-          let data = markdown.transformMarkdownTo(evt.target.result)
+          let data = await markdown.transformMarkdownToWithImages(evt.target.result)
+          
+          // 如果有多个顶级节点,添加一个根节点
+          if (data.children && data.children.length > 1) {
+            data = {
+              data: {
+                text: '根节点'
+              },
+              children: data.children
+            }
+          } else if (data.children && data.children.length === 1) {
+            // 如果只有一个顶级节点,直接使用它
+            data = data.children[0]
+          }
+          
           this.$bus.$emit('setData', data)
           this.$message.success(this.$t('import.importSuccess'))
         } catch (error) {

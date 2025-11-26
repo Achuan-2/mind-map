@@ -1,7 +1,8 @@
 import { transformToMarkdown } from './toMarkdown'
-import { transformMarkdownTo } from './markdownTo'
+import { transformMarkdownTo, transformMarkdownToWithImages } from './markdownTo'
 
 export default {
   transformToMarkdown,
-  transformMarkdownTo
+  transformMarkdownTo,
+  transformMarkdownToWithImages
 }

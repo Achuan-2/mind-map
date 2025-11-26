@@ -25,17 +25,6 @@
         <div class="btn" @click="onPrint">
           <span class="icon iconfont iconprinting"></span>
         </div>
-      </el-tooltip>
-      <el-tooltip
-        class="item"
-        effect="dark"
-        :content="$t('outline.pasteFromMarkdown') || '粘贴导入 Markdown'"
-        placement="top"
-      >
-        <div class="btn" @click="onPasteImport">
-          <span class="icon iconfont iconniantie"></span>
-        </div>
-      </el-tooltip>
       <div class="btn" @click="onClose">
         <span class="icon iconfont iconguanbi"></span>
       </div>
@@ -279,34 +268,6 @@ export default {
       this.$message.success(this.$t('contextmenu.copySuccess'))
     },
 
-    // 粘贴/导入 Markdown 列表（全屏编辑）
-    async onPasteImport() {
-      if (!(navigator.clipboard && navigator.clipboard.readText)) {
-        this.$message.error(this.$t('outline.clipboardNotSupported') || '浏览器不支持剪贴板读取')
-        return
-      }
-      let md = ''
-      try {
-        md = await navigator.clipboard.readText()
-      } catch (err) {
-        this.$message.error(this.$t('outline.clipboardReadFail') || '读取剪贴板失败')
-        return
-      }
-      if (!md || !md.trim()) {
-        this.$message.warning(this.$t('outline.clipboardEmpty') || '剪贴板为空或未包含 Markdown 列表')
-        return
-      }
-      try {
-        const data = markdown.transformMarkdownTo(md)
-        this.$bus.$emit('setData', data)
-        storeData({ root: data })
-        this.setIsOutlineEdit(false)
-        this.$message.success(this.$t('outline.importSuccess') || '导入成功')
-      } catch (e) {
-        console.error(e)
-        this.$message.error(this.$t('outline.importFail') || '导入失败')
-      }
-    },
 
     // 关闭
     onClose() {
