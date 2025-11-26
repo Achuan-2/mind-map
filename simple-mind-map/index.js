@@ -600,39 +600,81 @@ class MindMap {
     const isRectInvalid =
       !rect || rect.width < MIN_VALID_SIZE || rect.height < MIN_VALID_SIZE || Number.isNaN(rect.width) || Number.isNaN(rect.height)
     if (isRectInvalid) {
+      // 优先尝试临时把容器显示出来离屏测量 rbox（比 bbox 更接近真实屏幕坐标）
       let bbox = null
+      let triedShow = false
+      let originalStyle = null
       try {
-        // 尝试使用 draw 的本地 bbox（不依赖于 DOM 布局）
-        bbox = draw.bbox()
+        const el = this.el
+        originalStyle = {
+          display: el.style.display,
+          visibility: el.style.visibility,
+          position: el.style.position,
+          left: el.style.left,
+          top: el.style.top
+        }
+        el.style.visibility = 'hidden'
+        el.style.position = 'absolute'
+        el.style.left = '-9999px'
+        el.style.top = '-9999px'
+        el.style.display = 'block'
+        // 强制重绘
+        // eslint-disable-next-line no-unused-expressions
+        el.offsetHeight
+        const tmpRect = draw.rbox()
+        if (tmpRect && tmpRect.width >= MIN_VALID_SIZE && tmpRect.height >= MIN_VALID_SIZE && !Number.isNaN(tmpRect.width) && !Number.isNaN(tmpRect.height)) {
+          rect = tmpRect
+          isUsingBbox = false
+          triedShow = true
+        }
       } catch (e) {
-        bbox = null
+        // ignore
+      } finally {
+        if (originalStyle) {
+          const el = this.el
+          el.style.display = originalStyle.display
+          el.style.visibility = originalStyle.visibility
+          el.style.position = originalStyle.position
+          el.style.left = originalStyle.left
+          el.style.top = originalStyle.top
+        }
       }
-      if (!bbox || bbox.width < MIN_VALID_SIZE || bbox.height < MIN_VALID_SIZE) {
+
+      // 如果通过临时显示无法得到有效 rbox，则回退到使用 bbox 的方案
+      if (!triedShow) {
         try {
-          // 再尝试使用节点容器的 bbox
-          bbox = this.nodeDraw.bbox()
+          // 尝试使用 draw 的本地 bbox（不依赖于 DOM 布局）
+          bbox = draw.bbox()
         } catch (e) {
           bbox = null
         }
-      }
-      if (bbox && bbox.width >= MIN_VALID_SIZE && bbox.height >= MIN_VALID_SIZE) {
-        // 将 bbox（相对坐标）转换为与 rbox 类似的结构：x,y,width,height
-        rect = {
-          x: bbox.x,
-          y: bbox.y,
-          width: bbox.width,
-          height: bbox.height
+        if (!bbox || bbox.width < MIN_VALID_SIZE || bbox.height < MIN_VALID_SIZE) {
+          try {
+            // 再尝试使用节点容器的 bbox
+            bbox = this.nodeDraw.bbox()
+          } catch (e) {
+            bbox = null
+          }
         }
-        isUsingBbox = true
-      } else {
-        // 最后兜底：使用原始画布尺寸（尽量避免非常小的默认值）
-        rect = {
-          x: 0,
-          y: 0,
-          width: Math.max(origWidth, 200),
-          height: Math.max(origHeight, 200)
+        if (bbox && bbox.width >= MIN_VALID_SIZE && bbox.height >= MIN_VALID_SIZE) {
+          // 将 bbox（相对坐标）转换为与 rbox 类似的结构：x,y,width,height
+          rect = {
+            x: bbox.x,
+            y: bbox.y,
+            width: bbox.width,
+            height: bbox.height
+          }
+          isUsingBbox = true
+        } else {
+          // 最后兜底：使用原始画布尺寸（尽量避免非常小的默认值）
+          rect = {
+            x: 0,
+            y: 0,
+            width: Math.max(origWidth, 200),
+            height: Math.max(origHeight, 200)
+          }
+          isUsingBbox = true
         }
-        isUsingBbox = true
       }
     }
     // 需要裁减的区域
