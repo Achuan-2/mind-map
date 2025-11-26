@@ -143,7 +143,8 @@ export default {
     aiCreate: 'AI Continuation',
     modifyNodeLink: 'Modify node link',
     linkToNode: 'Link to node',
-    removeNodeLink: 'Remove node link'
+    removeNodeLink: 'Remove node link',
+    setAsRootNode: 'Set as root node'
   },
   count: {
     words: 'Words',
