@@ -99,24 +99,52 @@ export const getParentWithClass = (el, className) => {
 // 转换数据为Markdown列表格式
 export const transformToMarkdownList = (root) => {
   let str = ''
-  const htmlToPlain = (html) => {
+  const htmlToMarkdown = (html) => {
     if (!html && html !== '') return ''
-    // 使用 DOM 解析 HTML 并取出纯文本,兼容 <br> 和实体
     try {
       const div = document.createElement('div')
       div.innerHTML = html
-      let txt = div.textContent || div.innerText || ''
-      // 把换行和多空格合并为单个空格
-      txt = txt.replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim()
-      return txt
+      return convertToMarkdown(div)
     } catch (e) {
       // 回退:去掉标签
       return ('' + html).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
     }
   }
+  const convertToMarkdown = (element) => {
+    let result = ''
+    for (const child of element.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        result += child.textContent
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const tagName = child.tagName.toLowerCase()
+        const innerMarkdown = convertToMarkdown(child)
+        switch (tagName) {
+          case 'strong':
+          case 'b':
+            result += `**${innerMarkdown}**`
+            break
+          case 'em':
+          case 'i':
+            result += `*${innerMarkdown}*`
+            break
+          case 's':
+          case 'del':
+            result += `~~${innerMarkdown}~~`
+            break
+          case 'u':
+            result += `<u>${innerMarkdown}</u>`
+            break
+          default:
+            result += innerMarkdown
+            break
+        }
+      }
+    }
+    return result
+  }
   const walk = (node, level) => {
     const raw = node.data && node.data.text != null ? node.data.text : ''
-    const text = htmlToPlain(raw)
+    const text = htmlToMarkdown(raw)
     const prefix = '  '.repeat(level) + '- '
     str += prefix + text + '\n'
     if (node.children && node.children.length > 0) {
