@@ -249,9 +249,9 @@ class NodeImgAdjust {
     // 记录初始状态
     this.startClientX = e.clientX
     this.startClientY = e.clientY
-    const { width, height } = this.node.getData('imageSize')
-    this.startImgWidth = width
-    this.startImgHeight = height
+    // 使用当前渲染的大小作为起始大小
+    this.startImgWidth = this.currentImgWidth
+    this.startImgHeight = this.currentImgHeight
     // 将节点图片渲染到自定义元素上
     // this.handleEl.style.backgroundImage = `url(${this.node.getData('image')})`
     // 收集参考宽度
