@@ -1,4 +1,6 @@
 import { fromMarkdown } from 'mdast-util-from-markdown'
+import { gfm } from 'micromark-extension-gfm'
+import { gfmFromMarkdown } from 'mdast-util-gfm'
 
 // HTML 转义函数
 const escapeHtml = (s) => {
@@ -8,7 +10,7 @@ const escapeHtml = (s) => {
     .replace(/>/g, '&gt;')
 }
 
-// 从节点中提取文本,支持行内样式(emphasis, strong)
+// 从节点中提取文本,支持行内样式(emphasis, strong, delete)
 const getNodeText = node => {
   if (node.type === 'list') return { text: '', hasRichText: false }
   
@@ -32,6 +34,11 @@ const getNodeText = node => {
       hasRichText = true
       const childResult = getNodeText(item)
       textStr += `<strong>${childResult.text}</strong>`
+    } else if (item.type === 'delete') {
+      // 删除线 ~~text~~
+      hasRichText = true
+      const childResult = getNodeText(item)
+      textStr += `<del>${childResult.text}</del>`
     } else {
       // 其他类型,递归处理
       const childResult = getNodeText(item)
@@ -192,7 +199,10 @@ const handleList = node => {
 
 // 将markdown转换成节点树
 export const transformMarkdownTo = md => {
-  const tree = fromMarkdown(md)
+  const tree = fromMarkdown(md, {
+    extensions: [gfm()],
+    mdastExtensions: [...gfmFromMarkdown]
+  })
   let root = {
     children: []
   }
@@ -200,7 +210,7 @@ export const transformMarkdownTo = md => {
   let currentChildren = root.children
   let depthQueue = [-1]
   let currentDepth = -1
-  for (let i = 0; i < tree.children.length; i++) {
+    for (let i = 0; i < tree.children.length; i++) {
     let cur = tree.children[i]
     if (cur.type === 'heading') {
       if (!cur.children[0]) continue
@@ -266,6 +276,29 @@ export const transformMarkdownTo = md => {
       }
     } else if (cur.type === 'list') {
       currentChildren.push(...handleList(cur))
+    } else if (cur.type === 'paragraph') {
+      // 处理段落: 把段落作为单独的节点加入当前层级
+      if (!cur.children || !cur.children.length) continue
+      let node = {}
+      const textResult = getNodeText(cur)
+      node.data = {
+        text: textResult.text
+      }
+      if (textResult.hasRichText) {
+        node.data.richText = true
+        node.data.text = `<p><span>${textResult.text}</span></p>`
+      } else {
+        node.data.richText = false
+      }
+      node.children = []
+      // 检查段落中是否包含图片
+      const imageInfo = getNodeImage(cur)
+      if (imageInfo) {
+        node.data.image = imageInfo.url
+        node.data.imageTitle = imageInfo.alt
+        node.data.imageSize = { width: 100, height: 100 }
+      }
+      currentChildren.push(node)
     }
   }
   // 返回 root 对象,包含所有顶级节点

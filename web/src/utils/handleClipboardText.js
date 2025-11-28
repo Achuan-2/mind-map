@@ -87,9 +87,10 @@ const handleClipboardText = async text => {
     const res = await handleZHIXI(text)
     return res
   }
-  // Markdown列表
+  // Markdown判断: 列表/标题/加粗/斜体/删除线/链接/图片/行内代码等
   const trimText = text.trim()
-  if (/^(\-|\*|\d+\.)\s/.test(trimText) || /^#+\s/.test(trimText)) {
+  const markdownDetect = /(^([\-\*]|\d+\.)\s)|(^#+\s)|(\*\*[^*\n]+\*\*)|(__[^\n_]+__)|(~{2}[^~\n]+~{2})|(`[^`\n]+`)|(!?\[[^\]]+\]\([^\)]+\))/
+  if (markdownDetect.test(trimText)) {
     try {
       const res = await markdown.transformMarkdownToWithImages(text)
       console.log(res)
