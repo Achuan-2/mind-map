@@ -1513,6 +1513,70 @@ export const getNodeTreeBoundingRect = (
   }
 }
 
+// 通过节点数据计算边界（不依赖DOM，适用于DOM隐藏场景）
+// 返回的是节点在思维导图坐标系中的原始位置和尺寸
+export const getNodeTreeBoundingRectByNodeData = (
+  node,
+  excludeSelf = false,
+  excludeGeneralization = false
+) => {
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+  const walk = (root, isRoot) => {
+    // 使用节点的位置和尺寸数据，而非DOM的rbox
+    if (!(isRoot && excludeSelf) && root.width > 0 && root.height > 0) {
+      const x = root.left
+      const y = root.top
+      const width = root.width
+      const height = root.height
+      if (x < minX) {
+        minX = x
+      }
+      if (x + width > maxX) {
+        maxX = x + width
+      }
+      if (y < minY) {
+        minY = y
+      }
+      if (y + height > maxY) {
+        maxY = y + height
+      }
+    }
+    // 处理概要节点
+    if (!excludeGeneralization && root._generalizationList && root._generalizationList.length > 0) {
+      root._generalizationList.forEach(item => {
+        if (item.generalizationNode) {
+          walk(item.generalizationNode)
+        }
+      })
+    }
+    // 递归处理子节点
+    if (root.children && root.children.length > 0) {
+      root.children.forEach(item => {
+        walk(item)
+      })
+    }
+  }
+  walk(node, true)
+
+  // 处理边界情况
+  if (minX === Infinity) {
+    minX = 0
+    maxX = 0
+    minY = 0
+    maxY = 0
+  }
+
+  return {
+    left: minX,
+    top: minY,
+    width: maxX - minX,
+    height: maxY - minY
+  }
+}
+
 // 获取多个节点总的包围框
 export const getNodeListBoundingRect = (
   nodeList,

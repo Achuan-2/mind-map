@@ -21,6 +21,7 @@ import {
   isUndef,
   handleGetSvgDataExtraContent,
   getNodeTreeBoundingRect,
+  getNodeTreeBoundingRectByNodeData,
   mergeTheme,
   createUidForAppointNodes
 } from './src/utils'
@@ -590,20 +591,119 @@ class MindMap {
     // 去除放大缩小的变换效果
     draw.scale(1 / origTransform.scaleX, 1 / origTransform.scaleY)
     // 获取变换后的位置尺寸信息，其实是getBoundingClientRect方法的包装方法
-    const rect = draw.rbox()
+    let rect = draw.rbox()
+    // 检查rbox返回值是否有效（DOM隐藏时会返回无效值）
+    const isRboxInvalid = rect.width <= 0 || rect.height <= 0
+    // 如果rbox无效，通过节点数据计算边界
+    if (isRboxInvalid && this.renderer.root) {
+      const nodeRect = getNodeTreeBoundingRectByNodeData(this.renderer.root)
+      // 计算画布中心点和根节点中心点的偏移
+      const rootNode = this.renderer.root
+      rect = {
+        x: nodeRect.left,
+        y: nodeRect.top,
+        width: nodeRect.width,
+        height: nodeRect.height
+      }
+    }
     // 需要裁减的区域
     let clipData = null
     if (node) {
-      clipData = getNodeTreeBoundingRect(
-        node,
-        rect.x,
-        rect.y,
-        paddingX,
-        paddingY
-      )
+      if (isRboxInvalid) {
+        // DOM隐藏时使用节点数据计算裁减区域
+        // 不传入padding参数，padding会在Export.js中添加
+        clipData = getNodeTreeBoundingRectByNodeData(node)
+      } else {
+        clipData = getNodeTreeBoundingRect(
+          node,
+          rect.x,
+          rect.y,
+          paddingX,
+          paddingY
+        )
+      }
     }
     // 内边距
     const fixHeight = 0
+    const contentWidth = rect.width + paddingX * 2
+    const contentHeight = rect.height + paddingY * 2 + fixHeight + headerHeight + footerHeight
+    
+    // 如果DOM隐藏，使用viewBox方式导出
+    if (isRboxInvalid) {
+      // 克隆SVG元素
+      let clone = svg.clone()
+      // 设置克隆SVG的尺寸和viewBox
+      clone.size(contentWidth, contentHeight)
+      clone.viewbox(
+        rect.x - paddingX,
+        rect.y - paddingY,
+        contentWidth,
+        contentHeight
+      )
+      // 重置克隆SVG中draw容器的变换
+      const cloneDraw = clone.findOne('.smm-container')
+      if (cloneDraw) {
+        // 重置变换，使内容从viewBox的左上角开始
+        cloneDraw.transform({
+          translateX: 0,
+          translateY: 0,
+          scaleX: 1,
+          scaleY: 1
+        })
+      }
+      // 添加必要的样式
+      ;[this.joinCss(), ...cssTextList].forEach(s => {
+        clone.add(SVG(`<style>${s}</style>`))
+      })
+      // 附加内容
+      if (header && headerHeight > 0) {
+        if (cloneDraw) cloneDraw.translate(0, headerHeight)
+        header.width(contentWidth)
+        header.y(paddingY)
+        clone.add(header, 0)
+      }
+      if (footer && footerHeight > 0) {
+        footer.width(contentWidth)
+        footer.y(contentHeight - paddingY - footerHeight)
+        clone.add(footer)
+      }
+      // 修正defs里定义的元素的id
+      const defs = svg.find('defs')
+      const defs2 = clone.find('defs')
+      defs.forEach((def, defIndex) => {
+        const def2 = defs2[defIndex]
+        if (!def2) return
+        const children = def.children()
+        const children2 = def2.children()
+        for (let i = 0; i < children.length; i++) {
+          const child = children[i]
+          const child2 = children2[i]
+          if (child && child2) {
+            child2.attr('id', child.attr('id'))
+          }
+        }
+      })
+      // 恢复原先的变换信息
+      draw.transform(origTransform)
+      return {
+        svg: clone,
+        svgHTML: clone.svg(),
+        clipData,
+        rect: {
+          x: rect.x,
+          y: rect.y,
+          width: contentWidth,
+          height: contentHeight,
+          ratio: contentWidth / contentHeight
+        },
+        origWidth,
+        origHeight,
+        scaleX: origTransform.scaleX,
+        scaleY: origTransform.scaleY
+      }
+    }
+    
+    // 正常情况下的导出流程
     rect.width += paddingX * 2
     rect.height += paddingY * 2 + fixHeight + headerHeight + footerHeight
     draw.translate(paddingX, paddingY)
