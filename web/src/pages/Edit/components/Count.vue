@@ -1,5 +1,9 @@
 <template>
   <div class="countContainer" :class="{ isDark: isDark }">
+    <div class="item" v-if="lastSaveTime">
+      <span class="name">{{ $t('count.saved') }}</span>
+      <span class="value">{{ lastSaveTime }}</span>
+    </div>
     <div class="item">
       <span class="name">{{ $t('count.words') }}</span>
       <span class="value">{{ words }}</span>
@@ -26,7 +30,8 @@ export default {
     return {
       textStr: '',
       words: 0,
-      num: 0
+      num: 0,
+      lastSaveTime: ''
     }
   },
   computed: {
@@ -36,12 +41,14 @@ export default {
   },
   created() {
     this.$bus.$on('data_change', this.onDataChange)
+    this.$bus.$on('save_success', this.onSaveSuccess)
     if (this.mindMap) {
       this.onDataChange(this.mindMap.getData())
     }
   },
   beforeDestroy() {
     this.$bus.$off('data_change', this.onDataChange)
+    this.$bus.$off('save_success', this.onSaveSuccess)
   },
   methods: {
     // 监听数据变化
@@ -64,6 +71,17 @@ export default {
           this.walk(item)
         })
       }
+    },
+
+    // 保存成功时更新时间
+    onSaveSuccess() {
+      this.lastSaveTime = this.formatTime(new Date())
+    },
+
+    // 格式化时间为 HH:mm:ss
+    formatTime(date) {
+      const pad = (n) => n.toString().padStart(2, '0')
+      return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
     }
   }
 }

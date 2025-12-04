@@ -52,13 +52,16 @@ export const storeData = data => {
     if (window.takeOverApp) {
       mindMapData = originData
       window.takeOverAppMethods.saveMindMapData(originData)
+      Vue.prototype.$bus.$emit('save_success')
       return
     }
     Vue.prototype.$bus.$emit('write_local_file', originData)
     if (vuexStore.state.isHandleLocalFile) {
+      Vue.prototype.$bus.$emit('save_success')
       return
     }
     localStorage.setItem(SIMPLE_MIND_MAP_DATA, JSON.stringify(originData))
+    Vue.prototype.$bus.$emit('save_success')
   } catch (error) {
     console.log(error)
     if ('exceeded') {
