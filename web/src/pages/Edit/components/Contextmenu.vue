@@ -5,6 +5,8 @@
     ref="contextmenuRef"
     :style="{ left: left + 'px', top: top + 'px' }"
     :class="{ isDark: isDark }"
+    @click.stop
+    @mousedown.stop
   >
     <template v-if="type === 'node'">
       <div
@@ -388,6 +390,11 @@ export default {
         this.isNodeMousedown = false
         return
       }
+      // 如果已经显示了节点右键菜单，不要隐藏或显示画布菜单
+      if (this.type === 'node' && this.isShow) {
+        this.isMousedown = false
+        return
+      }
       this.isMousedown = false
       if (
         Math.abs(this.mosuedownX - e.clientX) > 3 ||
@@ -422,10 +429,13 @@ export default {
     },
 
     // 执行命令
-    exec(key, disabled, ...args) {
+    async exec(key, disabled, ...args) {
       if (disabled) {
         return
       }
+      // 保存节点引用，避免在 hide() 后丢失
+      const currentNode = this.node
+      
       switch (key) {
         case 'COPY_NODE':
           this.mindMap.renderer.copy()
@@ -444,7 +454,7 @@ export default {
                 children: (node.children || []).map(child => getNodeData(child))
               }
             }
-            const data = getNodeData(this.node)
+            const data = getNodeData(currentNode)
             const md = transformToMarkdownList(data)
             if (this.enableCopyToClipboardApi) {
               setDataToClipboard(md)
@@ -462,7 +472,7 @@ export default {
                   children: (node.children || []).map(child => getNodeData(child))
                 }
               }
-              const data = getNodeData(this.node)
+              const data = getNodeData(currentNode)
               // 收集该节点树中使用到的图片 key -> base64 映射（如果有）
               let imgMap = {}
               try {
@@ -498,29 +508,54 @@ export default {
           this.mindMap.view.fit()
           break
         case 'REMOVE_HYPERLINK':
-          this.node.setHyperlink('', '')
+          currentNode.setHyperlink('', '')
           break
         case 'REMOVE_NOTE':
-          this.node.setNote('')
+          currentNode.setNote('')
           break
         case 'EXPORT_CUR_NODE_TO_PNG':
-          this.mindMap.export(
-            'png',
-            true,
-            getTextFromHtml(this.node.getData('text')),
-            false,
-            this.node
-          )
-          break
+          this.hide()
+          try {
+            if (!currentNode) {
+              this.$message.error('未找到节点')
+              return
+            }
+            const fileName = getTextFromHtml(currentNode.getData('text')) || 'node'
+            await this.mindMap.export(
+              'png',
+              true,
+              fileName,
+              false,
+              currentNode
+            )
+            this.$message.success(this.$t('contextmenu.copySuccess') || '导出成功')
+          } catch (error) {
+            console.error('Export node to PNG failed:', error)
+            this.$message.error(this.$t('edit.exportError') || '导出失败')
+          }
+          return
         case 'COPY_CUR_NODE_TO_PNG':
-          this.copyNodeToPng()
-          break
+          this.hide()
+          if (!currentNode) {
+            this.$message.error('未找到节点')
+            return
+          }
+          try {
+            const png = await this.mindMap.export('png', false, '', false, currentNode)
+            const blob = await imgToDataUrl(png, true)
+            setImgToClipboard(blob)
+            this.$message.success(this.$t('contextmenu.copySuccess'))
+          } catch (error) {
+            console.log(error)
+            this.$message.error(this.$t('contextmenu.copyFail'))
+          }
+          return
         case 'UNEXPAND_ALL':
-          const uid = this.node ? this.node.uid : ''
+          const uid = currentNode ? currentNode.uid : ''
           this.$bus.$emit('execCommand', key, !uid, uid)
           break
         case 'EXPAND_ALL':
-          this.$bus.$emit('execCommand', key, this.node ? this.node.uid : '')
+          this.$bus.$emit('execCommand', key, currentNode ? currentNode.uid : '')
           break
         default:
           this.$bus.$emit('execCommand', key, ...args)
@@ -575,19 +610,6 @@ export default {
     aiCreate() {
       this.$bus.$emit('ai_create_part', this.node)
       this.hide()
-    },
-
-    // 复制节点为图片到剪贴板
-    async copyNodeToPng() {
-      try {
-        const png = await this.mindMap.export('png', false, '', false, this.node)
-        const blob = await imgToDataUrl(png, true)
-        setImgToClipboard(blob)
-        this.$message.success(this.$t('contextmenu.copySuccess'))
-      } catch (error) {
-        console.log(error)
-        this.$message.error(this.$t('contextmenu.copyFail'))
-      }
     }
   }
 }
