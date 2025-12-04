@@ -144,6 +144,7 @@ export default {
     setAsRootNode: '设置为根节点'
   },
   count: {
+    saved: '保存于',
     words: '字数',
     nodes: '节点'
   },

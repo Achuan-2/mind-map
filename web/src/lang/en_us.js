@@ -147,6 +147,7 @@ export default {
     setAsRootNode: 'Set as root node'
   },
   count: {
+    saved: 'Saved at',
     words: 'Words',
     nodes: 'Nodes'
   },
