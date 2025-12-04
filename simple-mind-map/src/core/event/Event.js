@@ -194,6 +194,13 @@ class Event extends EventEmitter {
   //  按键按下事件（用于检测空格）
   onKeydown(e) {
     if (e.code === 'Space' || e.key === ' ') {
+      // 如果当前正在编辑节点文本，则不拦截空格键，允许输入空格
+      const isTextEditing = this.mindMap.renderer?.textEdit?.isShowTextEdit()
+      if (isTextEditing) {
+        // 文本编辑状态下，不设置空格状态，允许正常输入空格
+        this.emit('keydown', e)
+        return
+      }
       this.isSpaceKeyDown = true
       // 阻止页面默认滚动行为（在某些浏览器/场景下）
       e.preventDefault()
