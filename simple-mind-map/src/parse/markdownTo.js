@@ -204,6 +204,15 @@ const handleList = node => {
       let cur = arr[i]
       let node = {}
       
+      // 首先检查是否包含思源块引用(在提取文本之前)
+      let blockRefInfo = null
+      if (cur.children.length > 0 && cur.children[0].type === 'paragraph') {
+        const linkInfo = getNodeLink(cur.children[0])
+        if (linkInfo) {
+          blockRefInfo = linkInfo
+        }
+      }
+      
       // 获取节点文本和富文本标记
       const textResult = getNodeText(cur)
       node.data = {
@@ -231,14 +240,13 @@ const handleList = node => {
           node.data.imageSize = { width: 100, height: 100 }
         }
         
-        // 检查是否只包含一个链接(作为节点链接)
-        const linkInfo = getNodeLink(cur.children[0])
-        if (linkInfo) {
-          node.data.hyperlink = linkInfo.url
-          node.data.hyperlinkTitle = linkInfo.title
+        // 设置节点链接(如果之前检测到)
+        if (blockRefInfo) {
+          node.data.hyperlink = blockRefInfo.url
+          node.data.hyperlinkTitle = blockRefInfo.title
           // 如果节点文本为空或与链接标题相同,使用链接标题作为节点文本
-          if (!node.data.text || node.data.text === linkInfo.title) {
-            node.data.text = escapeHtml(linkInfo.title)
+          if (!node.data.text || node.data.text === escapeHtml(blockRefInfo.title)) {
+            node.data.text = escapeHtml(blockRefInfo.title)
             node.data.richText = false
           }
         }
@@ -352,6 +360,10 @@ export const transformMarkdownTo = md => {
     } else if (cur.type === 'paragraph') {
       // 处理段落: 把段落作为单独的节点加入当前层级
       if (!cur.children || !cur.children.length) continue
+      
+      // 首先检查是否包含思源块引用(在提取文本之前)
+      const blockRefInfo = getNodeLink(cur)
+      
       let node = {}
       const textResult = getNodeText(cur)
       node.data = {
@@ -371,14 +383,13 @@ export const transformMarkdownTo = md => {
         node.data.imageTitle = imageInfo.alt
         node.data.imageSize = { width: 100, height: 100 }
       }
-      // 检查是否只包含一个链接(作为节点链接)
-      const linkInfo = getNodeLink(cur)
-      if (linkInfo) {
-        node.data.hyperlink = linkInfo.url
-        node.data.hyperlinkTitle = linkInfo.title
+      // 设置节点链接(如果检测到)
+      if (blockRefInfo) {
+        node.data.hyperlink = blockRefInfo.url
+        node.data.hyperlinkTitle = blockRefInfo.title
         // 如果节点文本为空或与链接标题相同,使用链接标题作为节点文本
-        if (!node.data.text || node.data.text === escapeHtml(linkInfo.title)) {
-          node.data.text = escapeHtml(linkInfo.title)
+        if (!node.data.text || node.data.text === escapeHtml(blockRefInfo.title)) {
+          node.data.text = escapeHtml(blockRefInfo.title)
           node.data.richText = false
         }
       }
