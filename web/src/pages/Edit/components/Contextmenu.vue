@@ -111,6 +111,9 @@
       <div class="item" @click="exec('EXPORT_CUR_NODE_TO_PNG')">
         <span class="name">{{ $t('contextmenu.exportNodeToPng') }}</span>
       </div>
+      <div class="item" @click="exec('COPY_CUR_NODE_TO_PNG')" v-if="enableCopyToClipboardApi">
+        <span class="name">{{ $t('contextmenu.copyNodeToPng') }}</span>
+      </div>
       <div class="splitLine" v-if="enableAi"></div>
       <div class="item" @click="aiCreate" v-if="enableAi">
         <span class="name">{{ $t('contextmenu.aiCreate') }}</span>
@@ -509,6 +512,9 @@ export default {
             this.node
           )
           break
+        case 'COPY_CUR_NODE_TO_PNG':
+          this.copyNodeToPng()
+          break
         case 'UNEXPAND_ALL':
           const uid = this.node ? this.node.uid : ''
           this.$bus.$emit('execCommand', key, !uid, uid)
@@ -569,6 +575,19 @@ export default {
     aiCreate() {
       this.$bus.$emit('ai_create_part', this.node)
       this.hide()
+    },
+
+    // 复制节点为图片到剪贴板
+    async copyNodeToPng() {
+      try {
+        const png = await this.mindMap.export('png', false, '', false, this.node)
+        const blob = await imgToDataUrl(png, true)
+        setImgToClipboard(blob)
+        this.$message.success(this.$t('contextmenu.copySuccess'))
+      } catch (error) {
+        console.log(error)
+        this.$message.error(this.$t('contextmenu.copyFail'))
+      }
     }
   }
 }
