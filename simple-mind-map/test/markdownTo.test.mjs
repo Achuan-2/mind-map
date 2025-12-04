@@ -9,6 +9,13 @@ const cases = [
   { name: 'nested list', md: '- 项目1\n  - **子项加粗**\n  - ~~子项删除线~~' }
   ,{ name: 'text with hyphen + strike', md: '粘贴 - ~~思源导图~~' }
   ,{ name: 'text with strike', md: '粘贴 ~~思源导图~~' }
+  // 链接测试
+  ,{ name: 'list - siyuan link', md: '- [思源笔记丨思维导图mindmap插件](siyuan://blocks/20251123204056-lsxs9hl)' }
+  ,{ name: 'list - block ref', md: "- ((20251123204056-lsxs9hl '思源笔记丨思维导图mindmap插件'))" }
+  ,{ name: 'list - web link', md: '- [网页链接](https://github.com/Achuan-2/siyuan-plugin-simplemindmap/issues/19)' }
+  ,{ name: 'paragraph - web link', md: '[网页链接](https://github.com/Achuan-2/siyuan-plugin-simplemindmap/issues/19)' }
+  ,{ name: 'paragraph - block ref', md: "((20251123204056-lsxs9hl '思源笔记丨思维导图mindmap插件'))" }
+  ,{ name: 'mixed links', md: '- [思源笔记丨思维导图mindmap插件](siyuan://blocks/20251123204056-lsxs9hl)\n- ((20251123204056-lsxs9hl \'思源笔记丨思维导图mindmap插件\'))\n- [网页链接](https://github.com/Achuan-2/siyuan-plugin-simplemindmap/issues/19)\n[网页链接](https://github.com/Achuan-2/siyuan-plugin-simplemindmap/issues/19)' }
 ]
 
 for (const c of cases) {
