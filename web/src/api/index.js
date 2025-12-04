@@ -52,7 +52,7 @@ export const storeData = data => {
     if (window.takeOverApp) {
       mindMapData = originData
       window.takeOverAppMethods.saveMindMapData(originData)
-      Vue.prototype.$bus.$emit('save_success')
+      // save_success 事件会在父窗口确认保存成功后通过消息触发
       return
     }
     Vue.prototype.$bus.$emit('write_local_file', originData)
