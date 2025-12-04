@@ -124,6 +124,7 @@ export default {
     removeCustomStyles: '一键去除自定义样式',
     removeAllNodeCustomStyles: '一键去除所有节点自定义样式',
     exportNodeToPng: '导出该节点为图片',
+    copyNodeToPng: '复制该节点为图片',
     copyToClipboard: '复制到剪贴板',
     copyToSmm: 'SMM',
     copyToJson: 'JSON',

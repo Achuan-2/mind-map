@@ -127,6 +127,7 @@ export default {
     removeCustomStyles: 'Remove custom styles',
     removeAllNodeCustomStyles: 'Remove all node custom styles',
     exportNodeToPng: 'Export node to png',
+    copyNodeToPng: 'Copy node to clipboard as image',
     copyToClipboard: 'Copy to clipboard',
     copyToSmm: 'SMM',
     copyToJson: 'JSON',
