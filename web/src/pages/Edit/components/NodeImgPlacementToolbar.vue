@@ -18,10 +18,19 @@
       ]"
       @click="updateImgPlacement(item)"
     ></div>
+    <div class="separator"></div>
+    <div
+      class="imgPlacementItem iconfont iconfuzhi"
+      @click="copyImage"
+      :title="$t('contextmenu.copy') || '复制图片'"
+    ></div>
   </div>
 </template>
 
 <script>
+import { imgToDataUrl } from 'simple-mind-map/src/utils'
+import { setImgToClipboard } from '@/utils'
+
 export default {
   props: {
     mindMap: {
@@ -112,6 +121,38 @@ export default {
       this.imgPlacement = item
       this.node.setStyle('imgPlacement', item)
       this.close()
+    },
+
+    async copyImage() {
+      if (!this.node) return
+      const imageData = this.node.getData()
+      const { image, imageTitle, imageSize } = imageData
+      if (image) {
+        try {
+          let imageUrl = image
+          
+          // 如果图片是 smm_img_key_ 格式，从 imgMap 中获取实际的 base64 数据
+          if (/^smm_img_key_/.test(image)) {
+            const renderTree = this.mindMap.renderer.renderTree
+            if (renderTree && renderTree.data.imgMap && renderTree.data.imgMap[image]) {
+              imageUrl = renderTree.data.imgMap[image]
+            } else {
+              this.$message.error(this.$t('contextmenu.copyFail') || '复制失败：未找到图片数据')
+              return
+            }
+          }
+          
+          // 将图片URL转换为blob并写入剪贴板
+          const blob = await imgToDataUrl(imageUrl, true)
+          setImgToClipboard(blob)
+          
+          // 显示成功消息
+          this.$message.success(this.$t('contextmenu.copySuccess') || '复制成功')
+        } catch (error) {
+          console.error('Copy image failed:', error)
+          this.$message.error(this.$t('contextmenu.copyFail') || '复制失败')
+        }
+      }
     }
   }
 }
@@ -129,6 +170,13 @@ export default {
   display: flex;
   align-items: center;
   padding: 0 10px;
+
+  .separator {
+    width: 1px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.1);
+    margin: 0 5px;
+  }
 
   .imgPlacementItem {
     width: 30px;
