@@ -10,6 +10,56 @@ const escapeHtml = (s) => {
     .replace(/>/g, '&gt;')
 }
 
+// 思源块引用正则: ((blockId 'title')) 或 ((blockId "title"))
+const siyuanBlockRefRegex = /^\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)$/
+
+// 将思源块引用格式转换为 siyuan:// 链接
+const convertSiyuanBlockRef = (text) => {
+  const match = text.match(siyuanBlockRefRegex)
+  if (match) {
+    return {
+      url: `siyuan://blocks/${match[1]}`,
+      title: match[2]
+    }
+  }
+  return null
+}
+
+// 从节点中提取链接信息(仅当节点只包含一个链接时)
+const getNodeLink = node => {
+  if (!node.children) return null
+  
+  // 检查是否只有一个子节点且为链接
+  const children = node.children.filter(item => item.type !== 'text' || (item.value && item.value.trim()))
+  
+  if (children.length === 1 && children[0].type === 'link') {
+    const linkNode = children[0]
+    // 获取链接文本
+    let linkText = ''
+    if (linkNode.children) {
+      linkNode.children.forEach(child => {
+        if (child.type === 'text') {
+          linkText += child.value || ''
+        }
+      })
+    }
+    return {
+      url: linkNode.url,
+      title: linkText || linkNode.title || ''
+    }
+  }
+  
+  // 检查是否是思源块引用格式的纯文本
+  if (children.length === 1 && children[0].type === 'text') {
+    const blockRef = convertSiyuanBlockRef(children[0].value.trim())
+    if (blockRef) {
+      return blockRef
+    }
+  }
+  
+  return null
+}
+
 // 从节点中提取文本,支持行内样式(emphasis, strong, delete)
 const getNodeText = node => {
   if (node.type === 'list') return { text: '', hasRichText: false }
@@ -20,10 +70,21 @@ const getNodeText = node => {
   ;(node.children || []).forEach(item => {
     if (item.type === 'text') {
       // 普通文本,需要转义
-      textStr += escapeHtml(item.value || '')
+      // 检查是否是思源块引用格式
+      const blockRef = convertSiyuanBlockRef(item.value.trim())
+      if (blockRef) {
+        textStr += escapeHtml(blockRef.title)
+      } else {
+        textStr += escapeHtml(item.value || '')
+      }
     } else if (item.type === 'inlineCode') {
       // 行内代码
       textStr += escapeHtml(item.value || '')
+    } else if (item.type === 'link') {
+      // 链接: 提取链接文本
+      const childResult = getNodeText(item)
+      textStr += childResult.text
+      if (childResult.hasRichText) hasRichText = true
     } else if (item.type === 'emphasis') {
       // 斜体 *text*
       hasRichText = true
@@ -160,7 +221,7 @@ const handleList = node => {
       node.children = []
       newArr.push(node)
       
-      // 检查第一个子节点是否包含图片
+      // 检查第一个子节点是否包含图片或链接
       if (cur.children.length > 0 && cur.children[0].type === 'paragraph') {
         const imageInfo = getNodeImage(cur.children[0])
         if (imageInfo) {
@@ -168,6 +229,18 @@ const handleList = node => {
           node.data.image = imageInfo.url
           node.data.imageTitle = imageInfo.alt
           node.data.imageSize = { width: 100, height: 100 }
+        }
+        
+        // 检查是否只包含一个链接(作为节点链接)
+        const linkInfo = getNodeLink(cur.children[0])
+        if (linkInfo) {
+          node.data.hyperlink = linkInfo.url
+          node.data.hyperlinkTitle = linkInfo.title
+          // 如果节点文本为空或与链接标题相同,使用链接标题作为节点文本
+          if (!node.data.text || node.data.text === linkInfo.title) {
+            node.data.text = escapeHtml(linkInfo.title)
+            node.data.richText = false
+          }
         }
       }
       
@@ -297,6 +370,17 @@ export const transformMarkdownTo = md => {
         node.data.image = imageInfo.url
         node.data.imageTitle = imageInfo.alt
         node.data.imageSize = { width: 100, height: 100 }
+      }
+      // 检查是否只包含一个链接(作为节点链接)
+      const linkInfo = getNodeLink(cur)
+      if (linkInfo) {
+        node.data.hyperlink = linkInfo.url
+        node.data.hyperlinkTitle = linkInfo.title
+        // 如果节点文本为空或与链接标题相同,使用链接标题作为节点文本
+        if (!node.data.text || node.data.text === escapeHtml(linkInfo.title)) {
+          node.data.text = escapeHtml(linkInfo.title)
+          node.data.richText = false
+        }
       }
       currentChildren.push(node)
     }
