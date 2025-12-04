@@ -158,7 +158,7 @@ class MindMap {
     this.addCss()
 
     // 初始渲染
-    this.render(this.opt.fit ? () => this.view.fit() : () => {})
+    this.render(this.opt.fit ? () => this.view.fit() : () => { })
 
     // 将初始数据添加到历史记录堆栈中
     if (this.opt.addHistoryOnInit && this.opt.data) {
@@ -590,93 +590,7 @@ class MindMap {
     // 去除放大缩小的变换效果
     draw.scale(1 / origTransform.scaleX, 1 / origTransform.scaleY)
     // 获取变换后的位置尺寸信息，其实是getBoundingClientRect方法的包装方法
-    let rect = draw.rbox()
-    // 标记rect是否使用bbox获取（bbox是SVG内部坐标，rbox是屏幕坐标）
-    let isUsingBbox = false
-    // 如果容器被 display:none（例如切换 Tab 导致不可见），某些浏览器会返回非常小的尺寸（例如 20x20 或 0x0）。
-    // 当检测到尺寸异常时，回退使用 SVG 的 bbox 来计算实际内容边界，避免导出得到 20x20 的错误尺寸。
-    // 使用50px作为异常阈值，小于这个值的宽高都认为是异常的
-    const MIN_VALID_SIZE = 50
-    const isRectInvalid =
-      !rect || rect.width < MIN_VALID_SIZE || rect.height < MIN_VALID_SIZE || Number.isNaN(rect.width) || Number.isNaN(rect.height)
-    if (isRectInvalid) {
-      // 优先尝试临时把容器显示出来离屏测量 rbox（比 bbox 更接近真实屏幕坐标）
-      let bbox = null
-      let triedShow = false
-      let originalStyle = null
-      try {
-        const el = this.el
-        originalStyle = {
-          display: el.style.display,
-          visibility: el.style.visibility,
-          position: el.style.position,
-          left: el.style.left,
-          top: el.style.top
-        }
-        el.style.visibility = 'hidden'
-        el.style.position = 'absolute'
-        el.style.left = '-9999px'
-        el.style.top = '-9999px'
-        el.style.display = 'block'
-        // 强制重绘
-        // eslint-disable-next-line no-unused-expressions
-        el.offsetHeight
-        const tmpRect = draw.rbox()
-        if (tmpRect && tmpRect.width >= MIN_VALID_SIZE && tmpRect.height >= MIN_VALID_SIZE && !Number.isNaN(tmpRect.width) && !Number.isNaN(tmpRect.height)) {
-          rect = tmpRect
-          isUsingBbox = false
-          triedShow = true
-        }
-      } catch (e) {
-        // ignore
-      } finally {
-        if (originalStyle) {
-          const el = this.el
-          el.style.display = originalStyle.display
-          el.style.visibility = originalStyle.visibility
-          el.style.position = originalStyle.position
-          el.style.left = originalStyle.left
-          el.style.top = originalStyle.top
-        }
-      }
-
-      // 如果通过临时显示无法得到有效 rbox，则回退到使用 bbox 的方案
-      if (!triedShow) {
-        try {
-          // 尝试使用 draw 的本地 bbox（不依赖于 DOM 布局）
-          bbox = draw.bbox()
-        } catch (e) {
-          bbox = null
-        }
-        if (!bbox || bbox.width < MIN_VALID_SIZE || bbox.height < MIN_VALID_SIZE) {
-          try {
-            // 再尝试使用节点容器的 bbox
-            bbox = this.nodeDraw.bbox()
-          } catch (e) {
-            bbox = null
-          }
-        }
-        if (bbox && bbox.width >= MIN_VALID_SIZE && bbox.height >= MIN_VALID_SIZE) {
-          // 将 bbox（相对坐标）转换为与 rbox 类似的结构：x,y,width,height
-          rect = {
-            x: bbox.x,
-            y: bbox.y,
-            width: bbox.width,
-            height: bbox.height
-          }
-          isUsingBbox = true
-        } else {
-          // 最后兜底：使用原始画布尺寸（尽量避免非常小的默认值）
-          rect = {
-            x: 0,
-            y: 0,
-            width: Math.max(origWidth, 200),
-            height: Math.max(origHeight, 200)
-          }
-          isUsingBbox = true
-        }
-      }
-    }
+    const rect = draw.rbox()
     // 需要裁减的区域
     let clipData = null
     if (node) {
@@ -696,13 +610,7 @@ class MindMap {
     // 将svg设置为实际内容的宽高
     svg.size(rect.width, rect.height)
     // 把实际内容变换
-    // 当使用bbox时，rect.x和rect.y是SVG内部相对坐标，直接使用负值translate
-    // 当使用rbox时，rect.x和rect.y是屏幕坐标，需要减去容器偏移
-    if (isUsingBbox) {
-      draw.translate(-rect.x, -rect.y)
-    } else {
-      draw.translate(-rect.x + elRect.left, -rect.y + elRect.top)
-    }
+    draw.translate(-rect.x + elRect.left, -rect.y + elRect.top)
     // 克隆一份数据
     let clone = svg.clone()
     // 是否存在水印
@@ -851,16 +759,16 @@ class MindMap {
     // 清除节点编辑框
     this.renderer.textEdit.hideEditTextBox()
     this.renderer.textEdit.removeTextEditEl()
-    // 移除插件
-    ;[...MindMap.pluginList].forEach(plugin => {
-      if (
-        this[plugin.instanceName] &&
-        this[plugin.instanceName].beforePluginDestroy
-      ) {
-        this[plugin.instanceName].beforePluginDestroy()
-      }
-      this[plugin.instanceName] = null
-    })
+      // 移除插件
+      ;[...MindMap.pluginList].forEach(plugin => {
+        if (
+          this[plugin.instanceName] &&
+          this[plugin.instanceName].beforePluginDestroy
+        ) {
+          this[plugin.instanceName].beforePluginDestroy()
+        }
+        this[plugin.instanceName] = null
+      })
     // 解绑事件
     this.event.unbind()
     // 移除画布节点
