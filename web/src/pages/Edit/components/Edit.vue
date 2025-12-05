@@ -448,6 +448,10 @@ export default {
         }
       })
       this.loadPlugins()
+      // 应用彩虹线条配置（需要在 MindMap 初始化后调用）
+      if (config && config.rainbowLinesConfig) {
+        this.mindMap.rainbowLines.updateRainLinesConfig(config.rainbowLinesConfig)
+      }
       this.mindMap.keyCommand.addShortcut('Control+s', () => {
         this.manualSave()
       })
