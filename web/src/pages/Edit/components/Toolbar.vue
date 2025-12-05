@@ -30,6 +30,19 @@
           <span class="icon iconfont iconniantie"></span>
           <span class="text">{{ $t('toolbar.pasteMarkdown') }}</span>
         </div>
+        <div class="toolbarBtn" @click="$bus.$emit('showNoteToMindmap')">
+          <span class="icon iconfont iconwenjian"></span>
+          <span class="text">{{ $t('toolbar.noteToMindmap') }}</span>
+        </div>
+        <div
+          class="toolbarBtn"
+          v-if="hasBlockSetting"
+          @click="refreshFromBlock"
+          :title="$t('toolbar.refreshFromBlockTip')"
+        >
+          <span class="icon el-icon-refresh" :class="{ rotating: refreshing }"></span>
+          <span class="text">{{ $t('toolbar.refreshFromBlock') }}</span>
+        </div>
         <div class="toolbarBtn" @click="$bus.$emit('showImport')">
           <span class="icon iconfont icondaoru"></span>
           <span class="text">{{ $t('toolbar.import') }}</span>
@@ -113,6 +126,7 @@
     <NodeTag></NodeTag>
     <Export></Export>
     <Import ref="ImportRef"></Import>
+    <NoteToMindmap></NoteToMindmap>
   </div>
 </template>
 
@@ -124,6 +138,7 @@ import NodeNote from './NodeNote.vue'
 import NodeTag from './NodeTag.vue'
 import Export from './Export.vue'
 import Import from './Import.vue'
+import NoteToMindmap from './NoteToMindmap.vue'
 import { mapState } from 'vuex'
 import { Notification } from 'element-ui'
 import exampleData from 'simple-mind-map/example/exampleData'
@@ -133,6 +148,56 @@ import { throttle, isMobile } from 'simple-mind-map/src/utils/index'
 import markdown from 'simple-mind-map/src/parse/markdown.js'
 import handleClipboardText from '@/utils/handleClipboardText'
 import { storeData } from '@/api'
+
+// 清理文本：转换思源特有的 HTML 标签，保留富文本样式
+function cleanText(text) {
+  if (!text) return ''
+  
+  let result = text
+  
+  // 转换 HTML 实体
+  result = result
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+  
+  // 转换思源富文本标签为标准 HTML
+  // <span data-type="strong">text</span> -> <strong>text</strong>
+  result = result.replace(/<span\s+data-type="strong"[^>]*>([\s\S]*?)<\/span>/gi, '<strong>$1</strong>')
+  // <span data-type="em">text</span> -> <em>text</em>
+  result = result.replace(/<span\s+data-type="em"[^>]*>([\s\S]*?)<\/span>/gi, '<em>$1</em>')
+  // <span data-type="s">text</span> -> <del>text</del> (删除线)
+  result = result.replace(/<span\s+data-type="s"[^>]*>([\s\S]*?)<\/span>/gi, '<del>$1</del>')
+  // <span data-type="u">text</span> -> <u>text</u> (下划线)
+  result = result.replace(/<span\s+data-type="u"[^>]*>([\s\S]*?)<\/span>/gi, '<u>$1</u>')
+  // <span data-type="mark">text</span> -> <mark>text</mark> (高亮)
+  result = result.replace(/<span\s+data-type="mark"[^>]*>([\s\S]*?)<\/span>/gi, '<mark>$1</mark>')
+  // <span data-type="sup">text</span> -> <sup>text</sup> (上标)
+  result = result.replace(/<span\s+data-type="sup"[^>]*>([\s\S]*?)<\/span>/gi, '<sup>$1</sup>')
+  // <span data-type="sub">text</span> -> <sub>text</sub> (下标)
+  result = result.replace(/<span\s+data-type="sub"[^>]*>([\s\S]*?)<\/span>/gi, '<sub>$1</sub>')
+  
+  // 移除带有 style 属性的 span 标签，只保留内容
+  result = result.replace(/<span\s+[^>]*style="[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1')
+  
+  // 移除思源特有的其他标签（如 data-type="code", data-type="tag" 等），只保留内容
+  result = result.replace(/<span\s+data-type="(?:code|tag|kbd|text|block-ref|a)"[^>]*>([\s\S]*?)<\/span>/gi, '$1')
+  
+  // 移除剩余的空 span 标签
+  result = result.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, '$1')
+  
+  // 移除其他思源特有标签
+  result = result.replace(/<[^>]*data-type[^>]*>([\s\S]*?)<\/[^>]+>/gi, '$1')
+  
+  // 清理多余空格
+  result = result.replace(/\s+/g, ' ').trim()
+  
+  return result
+}
 
 // 工具栏
 let fileHandle = null
@@ -166,6 +231,7 @@ export default {
     NodeTag,
     Export,
     Import,
+    NoteToMindmap,
     ToolbarNodeBtnList
   },
   data() {
@@ -183,7 +249,10 @@ export default {
       fileTreeVisible: false,
       rootDirName: '',
       fileTreeExpand: true,
-      waitingWriteToLocalFile: false
+      waitingWriteToLocalFile: false,
+      hasBlockSetting: false,
+      blockSettings: null,
+      refreshing: false
     }
   },
   computed: {
@@ -224,6 +293,7 @@ export default {
   },
   created() {
     this.$bus.$on('write_local_file', this.onWriteLocalFile)
+    this.$bus.$on('block_setting_updated', this.checkBlockSetting)
   },
   mounted() {
     this.computeToolbarShow()
@@ -232,9 +302,12 @@ export default {
     this.$bus.$on('lang_change', this.computeToolbarShowThrottle)
     window.addEventListener('beforeunload', this.onUnload)
     this.$bus.$on('node_note_dblclick', this.onNodeNoteDblclick)
+    // 检查是否有块设置，并处理自动刷新
+    this.checkBlockSetting(true)
   },
   beforeDestroy() {
     this.$bus.$off('write_local_file', this.onWriteLocalFile)
+    this.$bus.$off('block_setting_updated', this.checkBlockSetting)
     window.removeEventListener('resize', this.computeToolbarShowThrottle)
     this.$bus.$off('lang_change', this.computeToolbarShowThrottle)
     window.removeEventListener('beforeunload', this.onUnload)
@@ -555,6 +628,304 @@ export default {
         console.error(e)
         this.$message.error(this.$t('outline.importFail') || '导入失败')
       }
+    },
+
+    // 检查是否有块设置
+    checkBlockSetting(isInit = false) {
+      window.parent.postMessage(JSON.stringify({
+        event: 'get_block_setting'
+      }), '*')
+
+      const handler = (event) => {
+        try {
+          const message = JSON.parse(event.data)
+          if (message.event === 'block_setting_response') {
+            window.removeEventListener('message', handler)
+            if (message.settings && message.settings.blockId) {
+              this.hasBlockSetting = true
+              this.blockSettings = message.settings
+              // 如果是初始化且设置了自动刷新，则自动执行刷新
+              if (isInit && message.settings.autoRefresh) {
+                this.refreshFromBlock(true) // 静默刷新，不显示成功提示
+              }
+            } else {
+              this.hasBlockSetting = false
+              this.blockSettings = null
+            }
+          }
+        } catch (e) {}
+      }
+      window.addEventListener('message', handler)
+
+      setTimeout(() => {
+        window.removeEventListener('message', handler)
+      }, 2000)
+    },
+
+    // 从绑定的块刷新导图
+    async refreshFromBlock(silent = false) {
+      if (!this.blockSettings || !this.blockSettings.blockId) {
+        if (!silent) {
+          this.$message.warning(this.$t('noteToMindmap.noBlockSetting'))
+        }
+        return
+      }
+
+      this.refreshing = true
+
+      try {
+        const blockId = this.blockSettings.blockId
+        const importType = this.blockSettings.importType || 'outline'
+        const autoNumber = this.blockSettings.autoNumber || false
+        const maxLevel = this.blockSettings.maxLevel || 0
+
+        // 先查询块信息
+        const blockRes = await this.fetchSyncPost('/api/query/sql', {
+          stmt: `SELECT * FROM blocks WHERE id = '${blockId}'`
+        })
+
+        if (blockRes.code !== 0 || !blockRes.data || blockRes.data.length === 0) {
+          if (!silent) {
+            this.$message.error(this.$t('noteToMindmap.blockNotFound'))
+          }
+          return
+        }
+
+        const blockInfo = blockRes.data[0]
+        let mindmapData = null
+
+        if (blockInfo.type === 'd' && importType === 'outline') {
+          // 导入文档大纲
+          mindmapData = await this.importOutlineData(blockId, blockInfo, maxLevel)
+        } else {
+          // 导入内容
+          mindmapData = await this.importContentData(blockId, blockInfo, maxLevel)
+        }
+
+        if (mindmapData) {
+          // 应用自动编号
+          if (autoNumber) {
+            this.applyAutoNumber(mindmapData)
+          }
+
+          // 标记为新版本数据
+          try {
+            mindmapData.smmVersion = '0.13.0'
+          } catch (e) {}
+
+          // 更新思维导图
+          this.$bus.$emit('updateData', mindmapData)
+          storeData({ root: mindmapData })
+
+          if (!silent) {
+            this.$message.success(this.$t('noteToMindmap.refreshSuccess'))
+          }
+        }
+      } catch (e) {
+        console.error('Refresh error:', e)
+        if (!silent) {
+          this.$message.error(this.$t('noteToMindmap.refreshFailed'))
+        }
+      } finally {
+        this.refreshing = false
+      }
+    },
+
+    // 封装的 fetchSyncPost
+    async fetchSyncPost(url, data) {
+      const init = {
+        method: "POST",
+        body: JSON.stringify(data)
+      }
+      try {
+        const res = await fetch(url, init)
+        return await res.json()
+      } catch (e) {
+        console.log(e)
+        return { code: 1, msg: e.message || "", data: null }
+      }
+    },
+
+    // 导入大纲数据
+    async importOutlineData(blockId, blockInfo, maxLevel = 0) {
+      const res = await this.fetchSyncPost('/api/outline/getDocOutline', {
+        id: blockId
+      })
+
+      if (res.code !== 0 || !res.data) {
+        throw new Error('Get outline failed')
+      }
+
+      const outline = res.data
+      const docTitle = cleanText(blockInfo.content || blockInfo.name || '文档')
+
+      return {
+        data: {
+          text: docTitle,
+          hyperlink: `siyuan://blocks/${blockId}`,
+          hyperlinkTitle: docTitle
+        },
+        children: this.convertOutlineToMindmap(outline, 1, maxLevel)
+      }
+    },
+
+    // 转换大纲数据为思维导图格式
+    convertOutlineToMindmap(outline, currentLevel = 1, maxLevel = 0) {
+      if (!outline || !Array.isArray(outline)) return []
+      
+      // 如果设置了最大层级且当前层级超过限制，返回空数组
+      if (maxLevel > 0 && currentLevel > maxLevel) {
+        return []
+      }
+
+      // 检查文本是否包含富文本标签
+      const hasRichTextTags = (text) => {
+        return /<(strong|em|del|u|mark|sup|sub)>/i.test(text)
+      }
+
+      return outline.map(item => {
+        const text = cleanText(item.name || item.content || '')
+        const node = {
+          data: {
+            hyperlink: `siyuan://blocks/${item.id}`,
+            hyperlinkTitle: text.replace(/<[^>]+>/g, '') // 链接标题使用纯文本
+          },
+          children: []
+        }
+
+        // 处理富文本
+        if (hasRichTextTags(text)) {
+          node.data.richText = true
+          node.data.text = `<p><span>${text}</span></p>`
+        } else {
+          node.data.text = text
+        }
+
+        if (item.blocks && item.blocks.length > 0) {
+          node.children = this.convertOutlineToMindmap(item.blocks, currentLevel + 1, maxLevel)
+        }
+        if (item.children && item.children.length > 0) {
+          node.children = node.children.concat(this.convertOutlineToMindmap(item.children, currentLevel + 1, maxLevel))
+        }
+
+        return node
+      })
+    },
+
+    // 导入内容数据
+    async importContentData(blockId, blockInfo, maxLevel = 0) {
+      const res = await this.fetchSyncPost('/api/export/exportMdContent', {
+        id: blockId,
+        yfm: false,
+        fillCSSVar: true,
+        adjustHeadingLevel: true,
+        imgTag: false
+      })
+
+      if (!res?.data?.content) {
+        throw new Error('Export markdown content failed')
+      }
+
+      // 清理 Markdown 内容中的 HTML 实体
+      let mdContent = res.data.content
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'")
+
+      const title = cleanText(blockInfo.content || blockInfo.name || '内容')
+
+      const parsed = await markdown.transformMarkdownToWithImages(mdContent)
+
+      // 检查文本是否包含富文本标签
+      const hasRichTextTags = (text) => {
+        return /<(strong|em|del|u|mark|sup|sub)>/i.test(text)
+      }
+
+      // 递归清理所有节点的文本，并处理富文本
+      const cleanNodeText = (node) => {
+        if (node.data && node.data.text) {
+          const cleanedText = cleanText(node.data.text)
+          // 检查清理后的文本是否包含富文本标签
+          if (hasRichTextTags(cleanedText)) {
+            node.data.richText = true
+            node.data.text = `<p><span>${cleanedText}</span></p>`
+          } else {
+            node.data.text = cleanedText
+          }
+        }
+        if (node.children && node.children.length > 0) {
+          node.children.forEach(cleanNodeText)
+        }
+      }
+
+      // 按层级限制裁剪节点树
+      const trimByLevel = (node, currentLevel = 1) => {
+        if (maxLevel > 0 && currentLevel >= maxLevel) {
+          node.children = []
+        } else if (node.children && node.children.length > 0) {
+          node.children.forEach(child => trimByLevel(child, currentLevel + 1))
+        }
+      }
+
+      let root
+      if (parsed.children && parsed.children.length > 0) {
+        if (parsed.children.length === 1) {
+          root = parsed.children[0]
+        } else {
+          root = {
+            data: {
+              text: title,
+              hyperlink: `siyuan://blocks/${blockId}`,
+              hyperlinkTitle: title
+            },
+            children: parsed.children
+          }
+        }
+      } else {
+        root = {
+          data: {
+            text: title,
+            hyperlink: `siyuan://blocks/${blockId}`,
+            hyperlinkTitle: title
+          },
+          children: []
+        }
+      }
+
+      // 清理所有节点文本
+      cleanNodeText(root)
+
+      // 应用层级限制
+      if (maxLevel > 0) {
+        trimByLevel(root)
+      }
+
+      if (!root.data.hyperlink) {
+        root.data.hyperlink = `siyuan://blocks/${blockId}`
+        root.data.hyperlinkTitle = title
+      }
+
+      return root
+    },
+
+    // 应用自动编号
+    applyAutoNumber(node, prefix = '') {
+      if (!node.children || node.children.length === 0) return
+
+      node.children.forEach((child, index) => {
+        const num = prefix ? `${prefix}.${index + 1}` : `${index + 1}`
+        const text = child.data.text || ''
+        
+        if (!/^\d+(\.\d+)*\s/.test(text)) {
+          child.data.text = `${num} ${text}`
+        }
+
+        this.applyAutoNumber(child, num)
+      })
     }
   }
 }
@@ -782,12 +1153,25 @@ export default {
         flex-direction: column;
         text-align: center;
         padding: 0 5px;
+
+        &.rotating {
+          animation: spin 1s linear infinite;
+        }
       }
 
       .text {
         margin-top: 3px;
       }
     }
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>
