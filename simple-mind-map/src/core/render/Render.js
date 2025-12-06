@@ -1260,6 +1260,16 @@ class Render {
               const res = await this.mindMap.opt.customHandleClipboardText(text)
               if (!isUndef(res)) {
                 useDefault = false
+                // 检查是否是添加超链接到当前节点的特殊格式
+                if (res.addHyperlinkToActiveNode && res.hyperlink) {
+                  // 给当前激活的节点添加超链接
+                  if (this.activeNodeList.length > 0) {
+                    this.activeNodeList.forEach(node => {
+                      node.setHyperlink(res.hyperlink, res.hyperlinkTitle || '')
+                    })
+                  }
+                  return // 直接返回，不继续处理
+                }
                 const checkRes = checkSmmFormatData(res)
                 if (checkRes.isSmm) {
                   smmData = checkRes.data

@@ -87,8 +87,50 @@ const handleClipboardText = async text => {
     const res = await handleZHIXI(text)
     return res
   }
-  // Markdown判断: 列表/标题/加粗/斜体/删除线/链接/图片/行内代码/思源块引用等
+  
+  // 检测思源块链接: siyuan://blocks/xxx
   const trimText = text.trim()
+  const siyuanLinkMatch = trimText.match(/^siyuan:\/\/blocks\/([a-zA-Z0-9-]+)$/)
+  if (siyuanLinkMatch) {
+    const blockId = siyuanLinkMatch[1]
+    try {
+      // 获取块信息
+      const res = await fetch('/api/query/sql', {
+        method: 'POST',
+        body: JSON.stringify({
+          stmt: `SELECT * FROM blocks WHERE id = '${blockId}'`
+        })
+      })
+      const data = await res.json()
+      
+      let title = '未命名'
+      if (data && data.code === 0 && data.data && data.data.length > 0) {
+        const block = data.data[0]
+        title = block.content || block.name || '未命名'
+        // 移除HTML标签
+        title = title.replace(/<[^>]+>/g, '')
+      }
+      
+      // 返回特殊格式,指示应该添加超链接到当前节点
+      return {
+        simpleMindMap: true,
+        addHyperlinkToActiveNode: true,
+        hyperlink: trimText,
+        hyperlinkTitle: title
+      }
+    } catch (error) {
+      console.error('获取思源块信息失败:', error)
+      // 即使获取失败,也返回链接
+      return {
+        simpleMindMap: true,
+        addHyperlinkToActiveNode: true,
+        hyperlink: trimText,
+        hyperlinkTitle: '思源笔记'
+      }
+    }
+  }
+  
+  // Markdown判断: 列表/标题/加粗/斜体/删除线/链接/图片/行内代码/思源块引用等
   const markdownDetect = /(^([\-\*]|\d+\.)\s)|(^#+\s)|(\*\*[^*\n]+\*\*)|(__[^\n_]+__)|(~{2}[^~\n]+~{2})|(`[^`\n]+`)|(!?\[[^\]]+\]\([^\)]+\))|(\(\([a-zA-Z0-9-]+\s+['"][^'"]+['"]\)\))/
   if (markdownDetect.test(trimText)) {
     try {
