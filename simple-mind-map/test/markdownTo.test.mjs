@@ -3,9 +3,12 @@ import { transformMarkdownTo } from '../src/parse/markdownTo.js'
 const cases = [
   { name: 'paragraph - bold', md: '**加粗**' },
   { name: 'paragraph - strike', md: '~~删除线~~' },
+  { name: 'paragraph - underline', md: '<u>下划线</u>' },
   { name: 'list - bold', md: '- **加粗**' },
   { name: 'list - strike', md: '- ~~删除线~~' },
+  { name: 'list - underline', md: '- <u>下划线列表项</u>' },
   { name: 'heading - bold', md: '# **加粗** 标题' },
+  { name: 'heading - underline', md: '# <u>下划线标题</u>' },
   { name: 'nested list', md: '- 项目1\n  - **子项加粗**\n  - ~~子项删除线~~' }
   ,{ name: 'text with hyphen + strike', md: '粘贴 - ~~思源导图~~' }
   ,{ name: 'text with strike', md: '粘贴 ~~思源导图~~' }
