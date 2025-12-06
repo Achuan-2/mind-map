@@ -1,4 +1,5 @@
 import markdown from 'simple-mind-map/src/parse/markdown.js'
+import { checkIsRichText } from 'simple-mind-map/src/utils/index.js'
 
 // 思源API调用
 export async function fetchSyncPost(url, data, returnType = 'json') {
@@ -277,14 +278,43 @@ export function applyAutoNumber(node, prefix = '') {
     const num = prefix ? `${prefix}.${index + 1}` : `${index + 1}`
     const text = child.data.text || ''
     
-    // 检查是否已有编号，避免重复添加
-    if (!/^\d+(\.\d+)*\s/.test(text)) {
-      child.data.text = `${num} ${text}`
+    if (checkIsRichText(text)) {
+      // 如果是富文本，在<p>标签内添加编号
+      child.data.text = addNumberToRichText(text, num)
+    } else {
+      // 检查是否已有编号，避免重复添加
+      if (!/^\d+(\.\d+)*\s/.test(text)) {
+        child.data.text = `${num} ${text}`
+      }
     }
 
     // 递归处理子节点
     applyAutoNumber(child, num)
   })
+}
+
+// 在富文本HTML中添加编号
+function addNumberToRichText(html, num) {
+  const div = document.createElement('div')
+  div.innerHTML = html
+  
+  // 检查是否已有编号
+  const textContent = div.textContent || div.innerText || ''
+  if (/^\d+(\.\d+)*\s/.test(textContent.trim())) {
+    return html // 已有编号，不添加
+  }
+  
+  // 找到第一个<p>标签
+  const firstP = div.querySelector('p')
+  if (firstP) {
+    // 在<p>标签的开头添加编号
+    firstP.innerHTML = `${num} ${firstP.innerHTML}`
+  } else {
+    // 如果没有<p>标签，包裹整个内容
+    div.innerHTML = `<p>${num} ${html}</p>`
+  }
+  
+  return div.innerHTML
 }
 
 // 递归获取指定路径下的文档树结构（用于笔记本）
