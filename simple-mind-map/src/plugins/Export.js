@@ -93,7 +93,14 @@ class Export {
     if (this.mindMap.richText) {
       const foreignObjectList = svg.find('foreignObject')
       if (foreignObjectList.length > 0) {
-        foreignObjectList[0].add(SVG(`<style>${resetCss}</style>`))
+        // 添加重置样式和链接样式
+        const linkCss = `
+          a {
+            color: #0066cc;
+            text-decoration: underline;
+          }
+        `
+        foreignObjectList[0].add(SVG(`<style>${resetCss}${linkCss}</style>`))
         svgIsChange = true
       }
       // 如果还开启了数学公式，还要插入katex库的样式

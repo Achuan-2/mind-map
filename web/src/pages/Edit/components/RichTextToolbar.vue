@@ -129,11 +129,59 @@
       </el-popover>
     </el-tooltip>
 
+    <el-tooltip :content="hasLink ? linkUrl : $t('richTextToolbar.hyperlink')" placement="top">
+      <div class="btn" :class="{ active: hasLink }" @click="openLinkDialog">
+        <span class="icon iconfont iconchaolianjie"></span>
+      </div>
+    </el-tooltip>
+
     <el-tooltip :content="$t('richTextToolbar.removeFormat')" placement="top">
       <div class="btn" @click="removeFormat">
         <span class="icon iconfont iconqingchu"></span>
       </div>
     </el-tooltip>
+
+    <!-- 链接编辑对话框 -->
+    <el-dialog
+      :title="$t('richTextToolbar.hyperlink')"
+      :visible.sync="linkDialogVisible"
+      width="400px"
+      :append-to-body="true"
+      :close-on-click-modal="false"
+      @open="onLinkDialogOpen"
+      custom-class="rich-text-link-dialog"
+    >
+      <div class="linkInputBox" :class="{ isDark: isDark }">
+        <div class="linkInputItem">
+          <span class="linkInputLabel">{{ $t('richTextToolbar.linkText') }}</span>
+          <el-input
+            ref="linkTextInput"
+            v-model="linkText"
+            size="small"
+            :placeholder="$t('richTextToolbar.linkTextPlaceholder')"
+          >
+          </el-input>
+        </div>
+        <div class="linkInputItem">
+          <span class="linkInputLabel">{{ $t('richTextToolbar.linkUrl') }}</span>
+          <el-input
+            ref="linkUrlInput"
+            v-model="linkUrl"
+            size="small"
+            :placeholder="$t('richTextToolbar.linkPlaceholder')"
+            @keyup.native.enter="confirmLink"
+          >
+          </el-input>
+        </div>
+      </div>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="removeLink" v-if="hasLink" type="danger" size="small">
+          {{ $t('richTextToolbar.removeLink') }}
+        </el-button>
+        <el-button @click="cancelLink" size="small">{{ $t('dialog.cancel') }}</el-button>
+        <el-button type="primary" @click="confirmLink" size="small">{{ $t('dialog.confirm') }}</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
@@ -161,7 +209,12 @@ export default {
       },
       fontColor: '',
       fontBackgroundColor: '',
-      formatInfo: {}
+      formatInfo: {},
+      linkDialogVisible: false,
+      linkUrl: '',
+      linkText: '',
+      hasLink: false,
+      savedRange: null
     }
   },
   computed: {
@@ -192,6 +245,11 @@ export default {
         this.style.left = rect.left + rect.width / 2 + 'px'
         this.style.top = rect.top - 60 + 'px'
         this.formatInfo = { ...(formatInfo || {}) }
+        // 检查是否有链接
+        this.hasLink = !!formatInfo?.link
+        if (this.hasLink) {
+          this.linkUrl = formatInfo.link
+        }
       }
       this.showRichTextToolbar = hasRange
     },
@@ -261,6 +319,85 @@ export default {
 
     removeFormat() {
       this.mindMap.richText.removeFormat()
+    },
+
+    openLinkDialog() {
+      if (this.mindMap && this.mindMap.richText) {
+        // 保存当前选区
+        this.savedRange = this.mindMap.richText.range || this.mindMap.richText.lastRange
+        if (!this.savedRange) {
+          return
+        }
+        // 获取当前选中文本
+        const selectedText = this.mindMap.richText.getSelectionText()
+        // 获取当前选中文本的链接
+        const currentLink = this.mindMap.richText.getSelectionLink()
+        if (currentLink) {
+          this.hasLink = true
+          this.linkUrl = currentLink
+          this.linkText = selectedText || ''
+        } else {
+          this.hasLink = false
+          this.linkUrl = ''
+          this.linkText = selectedText || ''
+        }
+      }
+      this.linkDialogVisible = true
+    },
+
+    onLinkDialogOpen() {
+      this.$nextTick(() => {
+        if (this.$refs.linkUrlInput) {
+          this.$refs.linkUrlInput.focus()
+        }
+      })
+    },
+
+    confirmLink() {
+      if (this.mindMap && this.mindMap.richText && this.savedRange) {
+        const url = this.linkUrl.trim()
+        const text = this.linkText.trim()
+        
+        // 恢复选区
+        this.mindMap.richText.quill.setSelection(this.savedRange.index, this.savedRange.length)
+        
+        if (text && text !== this.mindMap.richText.getSelectionText()) {
+          // 如果锚文本改变了，需要先删除原文本再插入新文本
+          this.mindMap.richText.quill.deleteText(this.savedRange.index, this.savedRange.length)
+          if (url) {
+            this.mindMap.richText.quill.insertText(this.savedRange.index, text, 'link', url)
+          } else {
+            this.mindMap.richText.quill.insertText(this.savedRange.index, text)
+          }
+          // 更新选区
+          this.mindMap.richText.quill.setSelection(this.savedRange.index, text.length)
+        } else {
+          // 只更新链接
+          this.mindMap.richText.formatLink(url || false)
+        }
+        this.hasLink = !!url
+      }
+      this.linkDialogVisible = false
+    },
+
+    removeLink() {
+      if (this.mindMap && this.mindMap.richText && this.savedRange) {
+        // 恢复选区
+        this.mindMap.richText.quill.setSelection(this.savedRange.index, this.savedRange.length)
+        this.mindMap.richText.formatLink(false)
+        this.hasLink = false
+        this.linkUrl = ''
+      }
+      this.linkDialogVisible = false
+    },
+
+    cancelLink() {
+      this.linkDialogVisible = false
+    },
+
+    closeLinkPopover() {
+      this.linkDialogVisible = false
+      this.savedRange = null
     }
   }
 }
@@ -344,6 +481,52 @@ export default {
     &.active {
       color: #12bb37;
     }
+  }
+}
+
+.linkInputBox {
+  width: 100%;
+  padding: 10px 0;
+
+  &.isDark {
+    .linkInputLabel {
+      color: #ccc;
+    }
+  }
+
+  .linkInputItem {
+    margin-bottom: 15px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+
+    .linkInputLabel {
+      display: block;
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+  }
+}
+</style>
+
+<style lang="less">
+// dialog 全局样式，不能 scoped
+.rich-text-link-dialog {
+  .el-dialog__header {
+    padding: 15px 20px;
+    border-bottom: 1px solid #eee;
+  }
+
+  .el-dialog__body {
+    padding: 20px;
+  }
+
+  .el-dialog__footer {
+    padding: 10px 20px 15px;
+    border-top: 1px solid #eee;
   }
 }
 </style>

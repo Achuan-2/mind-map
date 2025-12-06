@@ -306,7 +306,8 @@ export default {
     bottom: 'Bottom',
     left: 'Left',
     right: 'Right',
-    tag: 'Tag'
+    tag: 'Tag',
+    hyperlink: 'Hyperlink'
   },
   theme: {
     title: 'Theme',
@@ -454,12 +455,18 @@ export default {
     italic: 'Italic',
     underline: 'Underline',
     strike: 'Strike',
-    fontFamily: 'Font family',
-    fontSize: 'Font size',
+    fontFamily: 'Font Family',
+    fontSize: 'Font Size',
     color: 'Color',
-    backgroundColor: 'Background color',
-    removeFormat: 'Clear Style',
-    textAlign: 'Text align'
+    backgroundColor: 'Background Color',
+    removeFormat: 'Remove Format',
+    textAlign: 'Text Align',
+    hyperlink: 'Hyperlink',
+    linkText: 'Link Text',
+    linkTextPlaceholder: 'Enter link text',
+    linkUrl: 'Link URL',
+    linkPlaceholder: 'Enter link URL',
+    removeLink: 'Remove Link'
   },
   other: {
     loading: 'Loading, please wait...'

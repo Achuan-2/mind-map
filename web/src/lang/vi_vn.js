@@ -304,7 +304,8 @@ export default {
     bottom: 'Dưới',
     left: 'Trái',
     right: 'Phải',
-    tag: 'Thẻ'
+    tag: 'Thẻ',
+    hyperlink: 'Liên kết'
   },
   theme: {
     title: 'Chủ đề',
@@ -421,7 +422,13 @@ export default {
     color: 'Màu sắc',
     backgroundColor: 'Màu nền',
     removeFormat: 'Xóa định dạng',
-    textAlign: 'Căn chỉnh văn bản'
+    textAlign: 'Căn chỉnh văn bản',
+    hyperlink: 'Liên kết',
+    linkText: 'Văn bản liên kết',
+    linkTextPlaceholder: 'Nhập văn bản liên kết',
+    linkUrl: 'URL liên kết',
+    linkPlaceholder: 'Nhập URL liên kết',
+    removeLink: 'Xóa liên kết'
   },
   other: {
     loading: 'Đang tải, vui lòng đợi...'
