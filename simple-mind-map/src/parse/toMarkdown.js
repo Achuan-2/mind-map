@@ -1,7 +1,23 @@
 import { walk, nodeRichTextToTextWithWrap } from '../utils'
 
+// 将HTML中的<a>标签转换为Markdown链接格式
+const convertHtmlToMarkdownLinks = html => {
+  if (!html) return ''
+  // 使用正则表达式替换<a>标签
+  return html.replace(/<a\s+href="([^"]*)"[^>]*>(.*?)<\/a>/gi, (match, url, title) => {
+    return `[${title}](${url})`
+  })
+}
+
 const getNodeText = data => {
-  return data.richText ? nodeRichTextToTextWithWrap(data.text) : data.text
+  if (data.richText) {
+    // 先转换为纯文本，然后转换链接
+    const textWithLinks = convertHtmlToMarkdownLinks(data.text)
+    // 如果还有HTML标签，使用nodeRichTextToTextWithWrap处理其他标签
+    return nodeRichTextToTextWithWrap(textWithLinks)
+  } else {
+    return data.text
+  }
 }
 
 const getTitleMark = level => {
@@ -26,6 +42,10 @@ export const transformToMarkdown = root => {
         content += getIndentMark(level)
       }
       content += ' ' + getNodeText(node.data)
+      // 节点超链接
+      if (node.data.hyperlink) {
+        content += ` [🔗](${node.data.hyperlink})`
+      }
       // 概要
       const generalization = node.data.generalization
       if (Array.isArray(generalization)) {
