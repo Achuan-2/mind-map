@@ -153,6 +153,7 @@ import {
   importContent,
   applyAutoNumber
 } from '@/utils/noteImport'
+import { importDocTree, getNotebookFinalSortMode } from '@/utils/noteImport'
 
 // 工具栏
 let fileHandle = null
@@ -671,11 +672,68 @@ export default {
         const blockInfo = blockRes.data[0]
         let mindmapData = null
 
-        if (blockInfo.type === 'd' && importType === 'outline') {
+        if (importType === 'docTree') {
+          if (blockInfo.type === 'notebook') {
+            // 从笔记本的文档树导入（从根开始）
+            // 先尝试解析最终排序模式
+            let finalSort = 15
+            try {
+              finalSort = await getNotebookFinalSortMode(blockId)
+            } catch (e) {
+              console.warn('Get notebook final sort mode failed, fallback to 15', e)
+            }
+            mindmapData = await importDocTree(blockId, '/', maxLevel, finalSort, blockInfo.name)
+          } else if (blockInfo.type === 'd') {
+            // 文档ID也可选择子文档树：需要 notebook 与 path
+            const docId = blockId
+            let notebookId = blockInfo.notebook || blockInfo.notebook_id || blockInfo.notebookId
+            let docPath = blockInfo.path || blockInfo.doc_path || blockInfo.file_path
+
+            // 如果没有 notebookId，则使用 SQL 查询 blocks 表以取 box 字段
+            if (!notebookId) {
+              try {
+                const boxRes = await fetchSyncPost('/api/query/sql', {
+                  stmt: `SELECT box, path FROM blocks WHERE id = '${docId}'`
+                })
+                if (boxRes && boxRes.code === 0 && boxRes.data && boxRes.data.length > 0) {
+                  const row = boxRes.data[0]
+                  notebookId = row.box || notebookId
+                  const pathFromRow = row.path || row.doc_path || row.file_path
+                  if (pathFromRow && !docPath) docPath = pathFromRow
+                }
+              } catch (e) {
+                console.warn('查询 blocks.box 失败', e)
+              }
+            }
+
+            if (!notebookId) {
+              if (!silent) this.$message.error(this.$t('noteToMindmap.cannotGetNotebook'))
+              return
+            }
+
+            if (!docPath) {
+              if (!silent) this.$message.error(this.$t('noteToMindmap.cannotGetDocPath'))
+              return
+            }
+
+            let finalSort = 15
+            try {
+              finalSort = await getNotebookFinalSortMode(notebookId)
+            } catch (e) {
+              console.warn('Get notebook final sort mode failed, fallback to 15', e)
+            }
+
+            mindmapData = await importDocTree(notebookId, docPath, maxLevel, finalSort, blockInfo.content || blockInfo.name)
+            try {
+              mindmapData.data.hyperlink = `siyuan://blocks/${docId}`
+              mindmapData.data.hyperlinkTitle = (mindmapData.data.hyperlinkTitle) || (blockInfo.content || blockInfo.name || '')
+            } catch (e) {}
+          }
+        } else if (blockInfo.type === 'd' && importType === 'outline') {
           // 导入文档大纲
           mindmapData = await importOutline(blockId, blockInfo, maxLevel)
         } else {
-          // 导入内容
+          // 导入内容（文档内容或块内容）
           mindmapData = await importContent(blockId, blockInfo, maxLevel, this.currentImageUrl)
         }
 

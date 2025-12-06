@@ -25,23 +25,33 @@
               {{ $t('noteToMindmap.setCurrentDoc') }}
             </el-button>
           </div>
+          <!-- 查询按钮放在输入下方 -->
+          <div style="margin-top:8px;">
+            <el-button type="primary" size="small" @click="queryBlockInfo" :loading="querying">
+              {{ $t('noteToMindmap.queryBlock') }}
+            </el-button>
+          </div>
         </el-form-item>
 
         <!-- 块类型显示 -->
         <el-form-item :label="$t('noteToMindmap.blockType')" v-if="blockInfo">
-          <el-tag :type="blockInfo.type === 'd' ? 'success' : 'info'">
-            {{ blockInfo.type === 'd' ? $t('noteToMindmap.document') : $t('noteToMindmap.block') }}
+          <el-tag :type="blockInfo.type === 'd' ? 'success' : (blockInfo.type === 'notebook' ? 'warning' : 'info')">
+            {{ blockInfo.type === 'd' ? $t('noteToMindmap.document') : (blockInfo.type === 'notebook' ? $t('noteToMindmap.notebook') : $t('noteToMindmap.block')) }}
           </el-tag>
           <span class="block-title">{{ blockInfo.content || blockInfo.name }}</span>
         </el-form-item>
 
-        <!-- 导入类型选择（仅文档时显示） -->
-        <el-form-item :label="$t('noteToMindmap.importType')" v-if="blockInfo && blockInfo.type === 'd'">
+        <!-- 导入类型选择（文档/笔记本均可显示不同选项） -->
+        <el-form-item :label="$t('noteToMindmap.importType')" v-if="blockInfo">
           <el-radio-group v-model="importType">
-            <el-radio label="outline">{{ $t('noteToMindmap.importOutline') }}</el-radio>
-            <el-radio label="content">{{ $t('noteToMindmap.importContent') }}</el-radio>
+            <el-radio v-if="blockInfo.type === 'd'" label="outline">{{ $t('noteToMindmap.importOutline') }}</el-radio>
+            <el-radio v-if="blockInfo.type === 'd'" label="content">{{ $t('noteToMindmap.importContent') }}</el-radio>
+            <el-radio v-if="blockInfo.type === 'd'" label="docTree">{{ $t('noteToMindmap.importDocTree') || '子文档树' }}</el-radio>
+            <el-radio v-if="blockInfo.type === 'notebook'" label="docTree">{{ $t('noteToMindmap.importDocTree') || '文档树' }}</el-radio>
           </el-radio-group>
         </el-form-item>
+
+        <!-- 文档ID不再显示起始路径输入框，使用文档自身 path 或通过 SQL 获取 -->
 
         <!-- 是否自动编号 -->
         <el-form-item :label="$t('noteToMindmap.autoNumber')">
@@ -69,9 +79,6 @@
 
       <span slot="footer" class="dialog-footer">
         <el-button @click="cancel">{{ $t('dialog.cancel') }}</el-button>
-        <el-button type="primary" @click="queryBlockInfo" :loading="querying">
-          {{ $t('noteToMindmap.queryBlock') }}
-        </el-button>
         <el-button type="success" @click="importToMindmap" :loading="importing" :disabled="!blockInfo">
           {{ $t('noteToMindmap.import') }}
         </el-button>
@@ -87,6 +94,8 @@ import {
   fetchSyncPost,
   importOutline,
   importContent,
+  importDocTree,
+  getDocTree,
   applyAutoNumber
 } from '@/utils/noteImport'
 
@@ -98,7 +107,8 @@ export default {
       dialogVisible: false,
       blockId: '',
       blockInfo: null,
-      importType: 'outline', // outline | content
+      importType: 'outline', // outline | content | docTree
+      finalSortMode: 15,
       autoNumber: false,
       maxLevel: 0, // 0 表示不限制
       autoRefresh: false,
@@ -231,12 +241,67 @@ export default {
       this.blockInfo = null
 
       try {
+        // 先判断是否为笔记本ID
+        try {
+          const nbRes = await fetchSyncPost('/api/notebook/lsNotebooks')
+          if (nbRes && nbRes.code === 0 && nbRes.data && Array.isArray(nbRes.data.notebooks)) {
+            const nb = nbRes.data.notebooks.find(n => n.id === this.blockId.trim())
+            if (nb) {
+              // 识别为笔记本
+              this.blockInfo = {
+                type: 'notebook',
+                id: nb.id,
+                name: nb.name,
+                sortMode: nb.sortMode
+              }
+              this.importType = 'docTree'
+
+              // 获取笔记本配置以确定最终排序模式
+              try {
+                const confRes = await fetchSyncPost('/api/notebook/getNotebookConf', {
+                  notebook: this.blockId.trim()
+                })
+                if (confRes && confRes.code === 0 && confRes.data && confRes.data.conf) {
+                  const notebookSortMode = confRes.data.conf.sortMode
+                  if (notebookSortMode === 15) {
+                    // 使用全局配置
+                    this.finalSortMode = window?.siyuan?.config?.fileTree?.sort || nb.sortMode || 15
+                  } else {
+                    this.finalSortMode = notebookSortMode
+                  }
+                }
+              } catch (e) {
+                // 忽略 conf 获取错误，使用默认
+                console.warn('Get notebook conf failed', e)
+              }
+
+              this.$message.success(this.$t('noteToMindmap.querySuccess'))
+              return
+            }
+          }
+        } catch (e) {
+          // 忽略笔记本列表错误，继续尝试读取块
+          console.warn('lsNotebooks failed', e)
+        }
+
+        // 不是笔记本，则查询 blocks 表
         const res = await fetchSyncPost('/api/query/sql', {
           stmt: `SELECT * FROM blocks WHERE id = '${this.blockId.trim()}'`
         })
 
         if (res.code === 0 && res.data && res.data.length > 0) {
           this.blockInfo = res.data[0]
+
+          // 支持允许对文档选择子文档树
+          if (this.blockInfo.type === 'd') {
+            // 尝试将 path 和 notebook 字段规范化到 blockInfo
+            // 常见字段名尝试:
+            // notebook, notebook_id, notebookId
+            // path, doc_path, file_path
+            this.blockInfo.notebook = this.blockInfo.notebook || this.blockInfo.notebook_id || this.blockInfo.notebookId || this.blockInfo.notebookId
+            this.blockInfo.path = this.blockInfo.path || this.blockInfo.doc_path || this.blockInfo.file_path || this.blockInfo.path
+          }
+
           this.$message.success(this.$t('noteToMindmap.querySuccess'))
         } else {
           this.$message.error(this.$t('noteToMindmap.blockNotFound'))
@@ -261,7 +326,53 @@ export default {
       try {
         let mindmapData = null
 
-        if (this.blockInfo.type === 'd' && this.importType === 'outline') {
+        if (this.blockInfo.type === 'notebook' && this.importType === 'docTree') {
+          // 从笔记本的文档树导入（笔记本无需输入路径，始终从根目录开始）
+          const startPath = '/'
+          mindmapData = await importDocTree(this.blockId, startPath, this.maxLevel, this.finalSortMode, this.blockInfo.name)
+        } else if (this.blockInfo.type === 'd' && this.importType === 'docTree') {
+          // 文档ID也可选择子文档树：需要 notebook 与 path
+          const docId = this.blockId.trim()
+          let notebookId = this.blockInfo.notebook || this.blockInfo.notebook_id || this.blockInfo.notebookId
+          let docPath = this.blockInfo.path || this.blockInfo.doc_path || this.blockInfo.file_path
+
+          // 如果没有 notebookId，则使用 SQL 查询 blocks 表以取 box 字段
+          if (!notebookId) {
+            try {
+              const boxRes = await fetchSyncPost('/api/query/sql', {
+                stmt: `SELECT box, path FROM blocks WHERE id = '${docId}'`
+              })
+              if (boxRes && boxRes.code === 0 && boxRes.data && boxRes.data.length > 0) {
+                const row = boxRes.data[0]
+                notebookId = row.box || notebookId
+                // 优先使用返回的 path，如果原来没有 docPath
+                const pathFromRow = row.path || row.doc_path || row.file_path
+                if (pathFromRow && !docPath) docPath = pathFromRow
+              }
+            } catch (e) {
+              console.warn('查询 blocks.box 失败', e)
+            }
+          }
+
+          if (!notebookId) {
+            this.$message.error(this.$t('noteToMindmap.cannotGetNotebook'))
+            this.importing = false
+            return
+          }
+
+          if (!docPath) {
+            this.$message.error(this.$t('noteToMindmap.cannotGetDocPath'))
+            this.importing = false
+            return
+          }
+
+          // 使用 importDocTree 生成子节点树，然后给根节点附加文档名与超链接
+          mindmapData = await importDocTree(notebookId, docPath, this.maxLevel, this.finalSortMode, this.blockInfo.content || this.blockInfo.name)
+          try {
+            mindmapData.data.hyperlink = `siyuan://blocks/${docId}`
+            mindmapData.data.hyperlinkTitle = (mindmapData.data.hyperlinkTitle) || (this.blockInfo.content || this.blockInfo.name || '')
+          } catch (e) {}
+        } else if (this.blockInfo.type === 'd' && this.importType === 'outline') {
           // 导入文档大纲
           mindmapData = await importOutline(this.blockId, this.blockInfo, this.maxLevel)
         } else {
