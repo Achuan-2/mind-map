@@ -172,6 +172,23 @@ const getNodeText = (node) => {
       hasRichText = true
       const childResult = getNodeText(item)
       textStr += `<del>${childResult.text}</del>`
+    } else if (item.type === 'underline') {
+      // 下划线 (如果有 underline 类型)
+      hasRichText = true
+      const childResult = getNodeText(item)
+      textStr += `<u>${childResult.text}</u>`
+    } else if (item.type === 'html' && item.value) {
+      // 处理 HTML 标签，包括下划线
+      const htmlValue = item.value.trim()
+      if (htmlValue.startsWith('<u>') && htmlValue.endsWith('</u>')) {
+        // 下划线 <u>text</u>
+        hasRichText = true
+        const innerText = htmlValue.slice(3, -4) // 移除 <u> 和 </u>
+        textStr += `<u>${escapeHtml(innerText)}</u>`
+      } else {
+        // 其他 HTML 标签，直接输出
+        textStr += htmlValue
+      }
     } else {
       // 其他类型,递归处理
       const childResult = getNodeText(item)
