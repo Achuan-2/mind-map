@@ -60,8 +60,9 @@ const getNodeLink = node => {
   return null
 }
 
-// 从节点中提取文本,支持行内样式(emphasis, strong, delete)
-const getNodeText = node => {
+// 从节点中提取文本,支持行内样式(emphasis, strong, delete, link)
+// skipLink: 是否跳过链接生成(当节点已被识别为节点链接时使用)
+const getNodeText = (node, skipLink = false) => {
   if (node.type === 'list') return { text: '', hasRichText: false }
   
   let textStr = ''
@@ -81,28 +82,34 @@ const getNodeText = node => {
       // 行内代码
       textStr += escapeHtml(item.value || '')
     } else if (item.type === 'link') {
-      // 链接: 提取链接文本
-      const childResult = getNodeText(item)
-      textStr += childResult.text
-      if (childResult.hasRichText) hasRichText = true
+      const childResult = getNodeText(item, skipLink)
+      if (skipLink) {
+        // 如果跳过链接,只提取链接文本,不生成 <a> 标签
+        textStr += childResult.text
+      } else {
+        // 行内链接: 生成 <a> 标签保留超链接
+        hasRichText = true
+        const linkUrl = item.url || ''
+        textStr += `<a href="${escapeHtml(linkUrl)}" target="_blank">${childResult.text}</a>`
+      }
     } else if (item.type === 'emphasis') {
       // 斜体 *text*
       hasRichText = true
-      const childResult = getNodeText(item)
+      const childResult = getNodeText(item, skipLink)
       textStr += `<em>${childResult.text}</em>`
     } else if (item.type === 'strong') {
       // 加粗 **text**
       hasRichText = true
-      const childResult = getNodeText(item)
+      const childResult = getNodeText(item, skipLink)
       textStr += `<strong>${childResult.text}</strong>`
     } else if (item.type === 'delete') {
       // 删除线 ~~text~~
       hasRichText = true
-      const childResult = getNodeText(item)
+      const childResult = getNodeText(item, skipLink)
       textStr += `<del>${childResult.text}</del>`
     } else {
       // 其他类型,递归处理
-      const childResult = getNodeText(item)
+      const childResult = getNodeText(item, skipLink)
       textStr += childResult.text
       if (childResult.hasRichText) hasRichText = true
     }
@@ -214,7 +221,8 @@ const handleList = node => {
       }
       
       // 获取节点文本和富文本标记
-      const textResult = getNodeText(cur)
+      // 如果检测到节点链接,跳过生成行内链接
+      const textResult = getNodeText(cur, !!blockRefInfo)
       node.data = {
         text: textResult.text
       }
@@ -298,8 +306,12 @@ export const transformMarkdownTo = md => {
       // 创建新节点
       let node = {}
       
+      // 检查是否只包含一个链接
+      const linkInfo = getNodeLink(cur)
+      
       // 获取节点文本和富文本标记
-      const textResult = getNodeText(cur)
+      // 如果检测到节点链接,跳过生成行内链接
+      const textResult = getNodeText(cur, !!linkInfo)
       node.data = {
         text: textResult.text
       }
@@ -310,6 +322,17 @@ export const transformMarkdownTo = md => {
         node.data.text = `<p><span>${textResult.text}</span></p>`
       } else {
         node.data.richText = false
+      }
+      
+      // 设置节点链接(如果检测到)
+      if (linkInfo) {
+        node.data.hyperlink = linkInfo.url
+        node.data.hyperlinkTitle = linkInfo.title
+        // 如果节点文本为空或与链接标题相同,使用链接标题作为节点文本
+        if (!node.data.text || node.data.text === escapeHtml(linkInfo.title)) {
+          node.data.text = escapeHtml(linkInfo.title)
+          node.data.richText = false
+        }
       }
       
       node.children = []
@@ -365,7 +388,8 @@ export const transformMarkdownTo = md => {
       const blockRefInfo = getNodeLink(cur)
       
       let node = {}
-      const textResult = getNodeText(cur)
+      // 如果检测到节点链接,跳过生成行内链接
+      const textResult = getNodeText(cur, !!blockRefInfo)
       node.data = {
         text: textResult.text
       }

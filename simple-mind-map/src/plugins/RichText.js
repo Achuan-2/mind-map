@@ -113,6 +113,11 @@ class RichText {
       .smm-richtext-node-wrap .ql-align-center {
         text-align: center;
       }
+
+      .smm-richtext-node-wrap a {
+        color: #0066cc;
+        text-decoration: underline;
+      }
       `
     )
     let cssText = `
@@ -470,7 +475,8 @@ class RichText {
         'font',
         'size',
         'formula',
-        'align'
+        'align',
+        'link'
       ], // 明确指定允许的格式，不包含有序列表，无序列表等
       theme: 'snow'
     })
@@ -527,6 +533,8 @@ class RichText {
       }
     })
     this.quill.on('text-change', () => {
+      // 如果节点不存在，跳过事件触发
+      if (!this.node) return
       this.mindMap.emit('node_text_edit_change', {
         node: this.node,
         text: this.getEditText(),
@@ -666,6 +674,36 @@ class RichText {
   // 清除当前选中文本的样式
   removeFormat() {
     this.formatText({}, true)
+  }
+
+  // 为选中的文本添加/移除超链接
+  formatLink(url) {
+    if (!this.range && !this.lastRange) return
+    const rangeLost = !this.range
+    const range = rangeLost ? this.lastRange : this.range
+    if (url) {
+      this.quill.formatText(range.index, range.length, 'link', url)
+    } else {
+      this.quill.formatText(range.index, range.length, 'link', false)
+    }
+    if (rangeLost) {
+      this.quill.setSelection(this.lastRange.index, this.lastRange.length)
+    }
+  }
+
+  // 获取当前选中文本的链接
+  getSelectionLink() {
+    if (!this.range && !this.lastRange) return null
+    const range = this.range || this.lastRange
+    const format = this.quill.getFormat(range.index, range.length)
+    return format.link || null
+  }
+
+  // 获取当前选中的文本内容
+  getSelectionText() {
+    if (!this.range && !this.lastRange) return ''
+    const range = this.range || this.lastRange
+    return this.quill.getText(range.index, range.length)
   }
 
   // 格式化指定范围的文本

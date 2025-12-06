@@ -299,8 +299,9 @@ export default {
     bottom: '下',
     left: '左',
     right: '右',
-    tag: '標簽',
-    direction: '方向'
+    tag: '標籤',
+    direction: '方向',
+    hyperlink: '超連結'
   },
   theme: {
     title: '主題',
@@ -409,7 +410,13 @@ export default {
     color: '字型顏色',
     backgroundColor: '背景顏色',
     removeFormat: '清除樣式',
-    textAlign: '對齊方式'
+    textAlign: '對齊方式',
+    hyperlink: '超連結',
+    linkText: '連結文本',
+    linkTextPlaceholder: '請輸入連結文本',
+    linkUrl: '連結地址',
+    linkPlaceholder: '請輸入連結地址',
+    removeLink: '移除連結'
   },
   other: {
     loading: '載入中，請稍候...'

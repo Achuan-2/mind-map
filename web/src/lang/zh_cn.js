@@ -301,7 +301,8 @@ export default {
     bottom: '下',
     left: '左',
     right: '右',
-    tag: '标签'
+    tag: '标签',
+    hyperlink: '超链接'
   },
   theme: {
     title: '主题',
@@ -446,7 +447,13 @@ export default {
     color: '字体颜色',
     backgroundColor: '背景颜色',
     removeFormat: '清除样式',
-    textAlign: '对齐方式'
+    textAlign: '对齐方式',
+    hyperlink: '超链接',
+    linkText: '链接文本',
+    linkTextPlaceholder: '请输入链接文本',
+    linkUrl: '链接地址',
+    linkPlaceholder: '请输入链接地址',
+    removeLink: '移除链接'
   },
   other: {
     loading: '正在加载，请稍后...'

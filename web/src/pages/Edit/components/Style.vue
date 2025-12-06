@@ -110,6 +110,17 @@
                 U
               </div>
             </el-tooltip>
+            <el-tooltip :content="$t('style.hyperlink')" placement="bottom">
+              <div
+                class="styleBtn link"
+                :class="{
+                  actived: hasHyperlink
+                }"
+                @click="openHyperlink"
+              >
+                🔗
+              </div>
+            </el-tooltip>
           </div>
           <el-popover ref="popover" placement="bottom" trigger="hover">
             <Color :color="style.color" @change="changeFontColor"></Color>
@@ -573,7 +584,9 @@ export default {
         lineFlowDuration: 1,
         textAlign: '',
         imgPlacement: '',
-        tagPlacement: ''
+        tagPlacement: '',
+        hyperlink: '',
+        hyperlinkTitle: ''
       }
     }
   },
@@ -621,6 +634,9 @@ export default {
     },
     alignList() {
       return alignList[this.$i18n.locale] || alignList.zh
+    },
+    hasHyperlink() {
+      return this.activeNodes.length > 0 && this.activeNodes[0].getData('hyperlink')
     }
   },
   watch: {
@@ -748,6 +764,11 @@ export default {
     changeEndColor(color) {
       this.style.endColor = color
       this.update('endColor')
+    },
+
+    // 打开超链接设置对话框
+    openHyperlink() {
+      this.$bus.$emit('showNodeLink')
     }
   }
 }
