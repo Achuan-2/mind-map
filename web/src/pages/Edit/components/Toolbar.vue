@@ -610,6 +610,24 @@ export default {
 
     // 检查是否有块设置
     checkBlockSetting(isInit = false) {
+      // 优先使用 takeOverApp 模式获取块设置
+      if (window.takeOverApp && window.takeOverAppMethods && window.takeOverAppMethods.getBlockSettings) {
+        const settings = window.takeOverAppMethods.getBlockSettings()
+        if (settings && settings.blockId) {
+          this.hasBlockSetting = true
+          this.blockSettings = settings
+          // 如果是初始化且设置了自动刷新，则自动执行刷新
+          if (isInit && settings.autoRefresh) {
+            this.refreshFromBlock(true) // 静默刷新，不显示成功提示
+          }
+        } else {
+          this.hasBlockSetting = false
+          this.blockSettings = null
+        }
+        return
+      }
+
+      // 否则通过 postMessage 请求
       window.parent.postMessage(JSON.stringify({
         event: 'get_block_setting'
       }), '*')
@@ -656,6 +674,39 @@ export default {
         const importType = this.blockSettings.importType || 'outline'
         const autoNumber = this.blockSettings.autoNumber || false
         const maxLevel = this.blockSettings.maxLevel || 0
+
+        // 处理文档树类型的刷新（可能是笔记本或文档）
+        // 如果 blockSettings 中有 isNotebook 标记且为 true，直接使用保存的信息刷新
+        if (importType === 'docTree' && this.blockSettings.isNotebook && this.blockSettings.notebookId) {
+          let finalSort = 15
+          try {
+            finalSort = await getNotebookFinalSortMode(this.blockSettings.notebookId)
+          } catch (e) {
+            console.warn('Get notebook final sort mode failed, fallback to 15', e)
+          }
+          const mindmapData = await importDocTree(
+            this.blockSettings.notebookId,
+            this.blockSettings.startPath || '/',
+            maxLevel,
+            finalSort,
+            this.blockSettings.rootName || '文档树'
+          )
+          
+          if (mindmapData) {
+            if (autoNumber) {
+              applyAutoNumber(mindmapData)
+            }
+            try {
+              mindmapData.smmVersion = '0.13.0'
+            } catch (e) {}
+            this.$bus.$emit('updateData', mindmapData)
+            storeData({ root: mindmapData })
+            if (!silent) {
+              this.$message.success(this.$t('noteToMindmap.refreshSuccess'))
+            }
+          }
+          return
+        }
 
         // 先查询块信息
         const blockRes = await fetchSyncPost('/api/query/sql', {

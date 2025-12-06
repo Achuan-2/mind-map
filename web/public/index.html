@@ -103,6 +103,21 @@
         window.takeOverAppMethods.saveLocalConfig = config => {
           console.log(config)
         }
+        // 获取块设置的函数
+        window.takeOverAppMethods.getBlockSettings = () => {
+          return data.blockSettings || null
+        }
+        // 保存块设置的函数
+        window.takeOverAppMethods.saveBlockSettings = settings => {
+          data.blockSettings = settings
+          // 通过消息发送给父窗口
+          if (window.parent) {
+            window.parent.postMessage(JSON.stringify({
+              event: 'save_block_setting',
+              settings: settings
+            }), '*')
+          }
+        }
       }
       window.onload = async () => {
         if (!window.takeOverApp) return

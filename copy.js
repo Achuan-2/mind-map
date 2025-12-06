@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 // Source directory containing the built files
 const srcDir = path.resolve(__dirname, './dist');
 // Destination directory inside the web project
-const destDir = path.resolve(__dirname, '../mindmap-web/dist');
+const destDir = path.resolve(__dirname, '../mindmap-embed/dist');
 
 // Remove existing destination directory if it exists
 if (fs.existsSync(destDir)) {
