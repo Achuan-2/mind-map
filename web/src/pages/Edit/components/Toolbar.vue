@@ -797,8 +797,8 @@ export default {
             mindmapData.smmVersion = '0.13.0'
           } catch (e) {}
 
-          // 更新思维导图
-          this.$bus.$emit('updateData', mindmapData)
+          // 更新思维导图，保持当前视图位置
+          this.$bus.$emit('updateData', mindmapData, { keepView: true })
           storeData({ root: mindmapData })
 
           if (!silent) {

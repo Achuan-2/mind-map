@@ -544,7 +544,7 @@ export default {
     },
 
     // 动态更新（带历史，可撤回）思维导图数据
-    updateData(data) {
+    updateData(data, options = {}) {
       this.handleShowLoading()
       let rootNodeData = null
       if (data.root) {
@@ -556,7 +556,10 @@ export default {
         rootNodeData = data
       }
       // keep behavior consistent with setData: reset view and store
-      this.mindMap.view.reset()
+      // 只有在未禁用重置时才重置视图
+      if (!options.keepView) {
+        this.mindMap.view.reset()
+      }
       this.manualSave()
       if (rootNodeData.data && rootNodeData.data.richText && !this.openNodeRichText) {
         this.$bus.$emit('toggleOpenNodeRichText', true)
