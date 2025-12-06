@@ -286,3 +286,146 @@ export function applyAutoNumber(node, prefix = '') {
     applyAutoNumber(child, num)
   })
 }
+
+// 递归获取指定路径下的文档树结构（用于笔记本）
+export async function getDocTree(notebookId, path = '/', sortMode = 6) {
+  async function fetchDocsRecursively(currentPath) {
+    try {
+      const res = await fetchSyncPost('/api/filetree/listDocsByPath', {
+        notebook: notebookId,
+        path: currentPath,
+        sort: sortMode,
+        showHidden: false,
+        maxListCount: 1000
+      })
+
+      if (!res || res.code !== 0 || !res.data || !res.data.files) {
+        console.error(`获取路径 [${currentPath}] 失败:`, res)
+        return []
+      }
+
+      const docPromises = res.data.files.map(async (file) => {
+        const node = {
+          name: (file.name || '').replace(/\.sy$/i, ''),
+          id: file.id,
+          path: (file.path || '').replace(/\.sy$/i, ''),
+          children: []
+        }
+
+        if (file.subFileCount > 0) {
+          const childPath = node.path || currentPath
+          node.children = await fetchDocsRecursively(childPath)
+        }
+        return node
+      })
+
+      return await Promise.all(docPromises)
+    } catch (error) {
+      console.error(`处理路径 [${currentPath}] 时发生错误:`, error)
+      return []
+    }
+  }
+
+  return await fetchDocsRecursively(path)
+}
+
+// 将文档树转换为思维导图格式并返回根节点
+export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, sortMode = 15, notebookName = '') {
+  // 当未显式传入 sortMode（null/undefined）或传入为 15（表示遵循“文档树”全局设置）时，读取笔记本配置以确定最终排序模式
+  let finalSort = sortMode
+  try {
+    const resolved = await getNotebookFinalSortMode(notebookId)
+    // 如果 resolved 为有效值，则使用之；否则保留原始 finalSort
+    if (typeof resolved !== 'undefined' && resolved !== null) {
+      finalSort = resolved
+    }
+  } catch (e) {
+    console.warn('获取笔记本排序模式失败，使用默认 sortMode:', e)
+    // 保持 finalSort 为传入值（可能为 15）或回退到 6
+    if (typeof finalSort === 'undefined' || finalSort === null) finalSort = 6
+  }
+
+  const tree = await getDocTree(notebookId, startPath, finalSort)
+
+  function convert(nodes, currentLevel = 1) {
+    if (!nodes || nodes.length === 0) return []
+    if (maxLevel > 0 && currentLevel > maxLevel) return []
+
+    return nodes.map((n) => {
+      const text = cleanText(n.name || '') || '文档'
+      const node = {
+        data: {
+          text,
+          hyperlink: n.id ? `siyuan://blocks/${n.id}` : undefined,
+          hyperlinkTitle: (text || '').replace(/<[^>]+>/g, '')
+        },
+        children: []
+      }
+
+      if (n.children && n.children.length > 0) {
+        node.children = convert(n.children, currentLevel + 1)
+      }
+
+      return node
+    })
+  }
+
+  const root = {
+    data: {
+      text: notebookName || '文档树'
+    },
+    children: convert(tree, 1)
+  }
+
+  // 清理节点文本并按层级裁剪
+  cleanNodeText(root)
+  if (maxLevel > 0) {
+    trimByLevel(root, 1, maxLevel)
+  }
+
+  return root
+}
+
+// 获取笔记本最终的排序模式：如果笔记本 sortMode 为 15，则使用全局 fileTree.sort
+export async function getNotebookFinalSortMode(NOTEBOOK_ID) {
+  console.log(`正在获取笔记本 [${NOTEBOOK_ID}] 的配置...`)
+  const confRes = await fetchSyncPost('/api/notebook/getNotebookConf', {
+    notebook: NOTEBOOK_ID
+  })
+
+  if (!confRes || confRes.code !== 0 || !confRes.data) {
+    console.error('获取笔记本配置失败，请检查笔记本ID是否正确。', confRes)
+    throw new Error('getNotebookConf failed')
+  }
+
+  const notebookSortMode = confRes.data.conf?.sortMode
+  let finalSortMode
+
+  // 尝试从父/顶层/opener 窗口安全读取全局的 fileTree.sort（处理 iframe 场景和跨域）
+  function getGlobalFileTreeSortFromPossibleContexts() {
+    const contexts = [window, window.parent, window.top, window.opener]
+    for (const ctx of contexts) {
+      if (!ctx) continue
+      try {
+        const v = ctx?.siyuan?.config?.fileTree?.sort
+        if (typeof v !== 'undefined' && v !== null) return v
+      } catch (e) {
+        // 可能是跨域访问异常，忽略并继续尝试下一个上下文
+      }
+    }
+    return undefined
+  }
+
+  if (notebookSortMode === 15) {
+    console.log('笔记本排序模式为 15 (文档树排序)，将尝试使用全局文件树排序设置。')
+    const globalSort = getGlobalFileTreeSortFromPossibleContexts()
+    console.log(`尝试读取到的全局文件树排序模式: ${globalSort}`)
+    // 如果无法读取到全局设置（跨域或不存在），回退到笔记本自身的设置
+    finalSortMode = (typeof globalSort !== 'undefined' && globalSort !== null) ? globalSort : notebookSortMode
+  } else {
+    finalSortMode = notebookSortMode
+    console.log(`笔记本使用自身特定的排序模式: ${finalSortMode}`)
+  }
+
+  return finalSortMode
+}

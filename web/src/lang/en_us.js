@@ -397,6 +397,12 @@ export default {
     importSuccess: 'Import success',
     importFailed: 'Import failed',
     noCurrentDoc: 'Cannot get current document',
+    importDocTree: 'Document Tree',
+    startPath: 'Start Path',
+    startPathDesc: 'Start importing from this path; defaults to the document path or /',
+    notebook: 'Notebook',
+    cannotGetNotebook: "Cannot get notebook ID for the document",
+    cannotGetDocPath: "Cannot get document path; please input start path manually",
     noBlockSetting: 'No block binding set',
     refreshSuccess: 'Refresh success',
     refreshFailed: 'Refresh failed'
