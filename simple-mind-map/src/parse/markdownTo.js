@@ -342,13 +342,45 @@ const handleList = node => {
           if (cur2.type === 'list') {
             // 检查前一个节点是否是段落节点
             // 如果是,将列表作为该段落节点的子节点
-            if (j > 1 && cur.children[j - 1].type === 'paragraph' && node.children.length > 0) {
-              const lastChild = node.children[node.children.length - 1]
-              walk(cur2.children, lastChild.children)
+            const prev = cur.children[j - 1]
+            if (prev && prev.type === 'paragraph') {
+              // 如果之前的段落还没有被处理
+              if (!prev.__handled) {
+                // 如果该段落是当前 list item 的第一个段落（用于 node.data），
+                // 则不要再创建一个重复的段落子节点，直接把子列表作为当前节点的子节点
+                const isFirstParagraph = (prev === cur.children[0])
+                if (isFirstParagraph) {
+                  // 直接把子列表项并入当前节点的 children
+                  walk(cur2.children, node.children)
+                  prev.__handled = true
+                } else {
+                  const paragraphNode = {}
+                  const paragraphTextResult = getNodeText(prev)
+                  paragraphNode.data = {
+                    text: paragraphTextResult.text
+                  }
+                  if (paragraphTextResult.hasRichText) {
+                    paragraphNode.data.richText = true
+                    paragraphNode.data.text = `<p><span>${paragraphTextResult.text}</span></p>`
+                  } else {
+                    paragraphNode.data.richText = false
+                  }
+                  paragraphNode.children = []
+                  node.children.push(paragraphNode)
+                  prev.__handled = true
+                  const lastChild = node.children[node.children.length - 1]
+                  walk(cur2.children, lastChild.children)
+                }
+              } else {
+                const lastChild = node.children[node.children.length - 1]
+                walk(cur2.children, lastChild.children)
+              }
             } else {
               walk(cur2.children, node.children)
             }
           } else if (cur2.type === 'paragraph') {
+            // 跳过已由之前的 list 分支创建的段落
+            if (cur2.__handled) continue
             // 检查段落中是否有图片(如果第一个子节点还没有设置图片)
             const imageInfo = getNodeImage(cur2)
             if (imageInfo && !node.data.image) {
@@ -371,6 +403,8 @@ const handleList = node => {
               }
               paragraphNode.children = []
               node.children.push(paragraphNode)
+              // 标记该段落已被处理，避免后续子列表分支再次创建重复段落
+              cur2.__handled = true
             }
           }
         }
@@ -489,7 +523,18 @@ export const transformMarkdownTo = md => {
         }
       }
     } else if (cur.type === 'list') {
-      currentChildren.push(...handleList(cur))
+      // 如果前一个 AST 节点是段落，则把列表作为该段落节点的子节点
+      const prevTreeNode = tree.children[i - 1]
+      if (prevTreeNode && prevTreeNode.type === 'paragraph' && currentChildren.length > 0) {
+        const lastChild = currentChildren[currentChildren.length - 1]
+        if (lastChild) {
+          lastChild.children.push(...handleList(cur))
+        } else {
+          currentChildren.push(...handleList(cur))
+        }
+      } else {
+        currentChildren.push(...handleList(cur))
+      }
     } else if (cur.type === 'paragraph') {
       // 处理段落: 把段落作为单独的节点加入当前层级
       if (!cur.children || !cur.children.length) continue
