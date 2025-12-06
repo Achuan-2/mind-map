@@ -613,6 +613,7 @@ export default {
       // 优先使用 takeOverApp 模式获取块设置
       if (window.takeOverApp && window.takeOverAppMethods && window.takeOverAppMethods.getBlockSettings) {
         const settings = window.takeOverAppMethods.getBlockSettings()
+        // 只有在获取到有效设置时才直接返回，否则继续使用 postMessage 方式
         if (settings && settings.blockId) {
           this.hasBlockSetting = true
           this.blockSettings = settings
@@ -620,14 +621,11 @@ export default {
           if (isInit && settings.autoRefresh) {
             this.refreshFromBlock(true) // 静默刷新，不显示成功提示
           }
-        } else {
-          this.hasBlockSetting = false
-          this.blockSettings = null
+          return
         }
-        return
       }
 
-      // 否则通过 postMessage 请求
+      // 通过 postMessage 请求块设置（适用于已保存的思维导图重新打开的情况）
       window.parent.postMessage(JSON.stringify({
         event: 'get_block_setting'
       }), '*')
