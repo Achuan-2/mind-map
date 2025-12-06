@@ -124,20 +124,23 @@ export function convertOutlineToMindmap(outline, currentLevel = 1, maxLevel = 0)
 
   return outline.map(item => {
     const text = cleanText(item.name || item.content || '')
+    const plainText = text.replace(/<[^>]+>/g, '')
+    const url = `siyuan://blocks/${item.id}`
+    
     const node = {
-      data: {
-        hyperlink: `siyuan://blocks/${item.id}`,
-        hyperlinkTitle: text.replace(/<[^>]+>/g, '') // 链接标题使用纯文本
-      },
+      data: {},
       children: []
     }
 
-    // 处理富文本
+    // 使用行内链接格式
     if (hasRichTextTags(text)) {
+      // 如果原文本有富文本标签，将链接和富文本结合
       node.data.richText = true
-      node.data.text = `<p><span>${text}</span></p>`
+      node.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${text}</a></p>`
     } else {
-      node.data.text = text
+      // 纯文本，包裹为行内链接
+      node.data.richText = true
+      node.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainText}</a></p>`
     }
 
     // 处理子节点 (blocks 或 children)
@@ -164,12 +167,13 @@ export async function importOutline(blockId, blockInfo, maxLevel = 0) {
 
   const outline = res.data
   const docTitle = cleanText(blockInfo.content || blockInfo.name || '文档')
+  const plainTitle = docTitle.replace(/<[^>]+>/g, '')
+  const url = `siyuan://blocks/${blockId}`
 
   return {
     data: {
-      text: docTitle,
-      hyperlink: `siyuan://blocks/${blockId}`,
-      hyperlinkTitle: docTitle
+      richText: true,
+      text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
     },
     children: convertOutlineToMindmap(outline, 1, maxLevel)
   }
@@ -228,6 +232,9 @@ export async function importContent(blockId, blockInfo, maxLevel = 0, currentIma
   // 使用 markdown 解析器转换
   const parsed = await markdown.transformMarkdownToWithImages(mdContent)
 
+  const plainTitle = title.replace(/<[^>]+>/g, '')
+  const url = `siyuan://blocks/${blockId}`
+  
   let root
   if (parsed.children && parsed.children.length > 0) {
     if (parsed.children.length === 1) {
@@ -235,9 +242,8 @@ export async function importContent(blockId, blockInfo, maxLevel = 0, currentIma
     } else {
       root = {
         data: {
-          text: title,
-          hyperlink: `siyuan://blocks/${blockId}`,
-          hyperlinkTitle: title
+          richText: true,
+          text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
         },
         children: parsed.children
       }
@@ -245,9 +251,8 @@ export async function importContent(blockId, blockInfo, maxLevel = 0, currentIma
   } else {
     root = {
       data: {
-        text: title,
-        hyperlink: `siyuan://blocks/${blockId}`,
-        hyperlinkTitle: title
+        richText: true,
+        text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
       },
       children: []
     }
@@ -261,10 +266,11 @@ export async function importContent(blockId, blockInfo, maxLevel = 0, currentIma
     trimByLevel(root, 1, maxLevel)
   }
 
-  // 为根节点添加链接（如果还没有）
-  if (!root.data.hyperlink) {
-    root.data.hyperlink = `siyuan://blocks/${blockId}`
-    root.data.hyperlinkTitle = title
+  // 为根节点添加行内链接（如果还没有）
+  if (!root.data.richText || !root.data.text.includes('href=')) {
+    root.data.richText = true
+    const currentText = root.data.text?.replace(/<[^>]+>/g, '').trim() || plainTitle
+    root.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${currentText}</a></p>`
   }
 
   return root
@@ -383,11 +389,15 @@ export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, s
 
     return nodes.map((n) => {
       const text = cleanText(n.name || '') || '文档'
+      const plainText = text.replace(/<[^>]+>/g, '')
+      const url = n.id ? `siyuan://blocks/${n.id}` : ''
+      
       const node = {
-        data: {
-          text,
-          hyperlink: n.id ? `siyuan://blocks/${n.id}` : undefined,
-          hyperlinkTitle: (text || '').replace(/<[^>]+>/g, '')
+        data: url ? {
+          richText: true,
+          text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainText}</a></p>`
+        } : {
+          text: text
         },
         children: []
       }

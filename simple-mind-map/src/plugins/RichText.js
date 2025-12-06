@@ -876,7 +876,7 @@ class RichText {
     if (!data) return
     // 短期处理，为了兼容老数据，长期会去除
     const isOldRichTextVersion =
-      !data.smmVersion || compareVersion(data.smmVersion, '0.13.0') === '<'
+      false
     const walk = root => {
       if (root.data && (!root.data.richText || isOldRichTextVersion)) {
         this.handleDataToRichText(root.data)
