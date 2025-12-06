@@ -14,6 +14,7 @@
         placeholder="http://xxxx.com/"
         @keyup.native.stop
         @keydown.native.stop
+        @paste.native="handlePaste"
       ></el-input>
     </div>
     <div class="item">
@@ -71,6 +72,60 @@ export default {
 
     handleShowNodeLink() {
       this.dialogVisible = true
+    },
+
+    // 处理粘贴事件
+    handlePaste(e) {
+      e.preventDefault()
+      const text = e.clipboardData.getData('text/plain')
+      if (!text) return
+
+      // 检测思源块引用格式: ((blockId 'title')) 或 ((blockId "title"))
+      const siyuanBlockRefMatch = text.match(/^\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)$/)
+      if (siyuanBlockRefMatch) {
+        const blockId = siyuanBlockRefMatch[1]
+        const title = siyuanBlockRefMatch[2]
+        this.link = `siyuan://blocks/${blockId}`
+        this.linkTitle = title
+        return
+      }
+
+      // 检测 siyuan://blocks/xxx 格式
+      const siyuanLinkMatch = text.match(/^siyuan:\/\/blocks\/([a-zA-Z0-9-]+)$/)
+      if (siyuanLinkMatch) {
+        this.link = text
+        // 如果linkTitle为空,可以尝试从API获取
+        if (!this.linkTitle) {
+          this.fetchBlockTitle(siyuanLinkMatch[1])
+        }
+        return
+      }
+
+      // 普通链接,直接设置
+      this.link = text
+    },
+
+    // 获取思源块标题
+    async fetchBlockTitle(blockId) {
+      try {
+        const res = await fetch('/api/query/sql', {
+          method: 'POST',
+          body: JSON.stringify({
+            stmt: `SELECT * FROM blocks WHERE id = '${blockId}'`
+          })
+        })
+        const data = await res.json()
+        
+        if (data && data.code === 0 && data.data && data.data.length > 0) {
+          const block = data.data[0]
+          let title = block.content || block.name || ''
+          // 移除HTML标签
+          title = title.replace(/<[^>]+>/g, '')
+          this.linkTitle = title
+        }
+      } catch (error) {
+        console.error('获取思源块标题失败:', error)
+      }
     },
 
     cancel() {
