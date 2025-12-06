@@ -77,7 +77,7 @@ const convertInlineBlockRefs = (text) => {
       }
       // 添加块引用链接
       const url = `siyuan://blocks/${ref.blockId}`
-      finalResult += `<a href="${escapeHtml(url)}" target="_blank">${escapeHtml(ref.title)}</a>`
+      finalResult += `<a href="${escapeHtml(url)}" rel="noopener noreferrer" target="_blank">${escapeHtml(ref.title)}</a>`
       lastIndex = ref.end
     })
     // 添加剩余文本(转义)
@@ -127,8 +127,7 @@ const getNodeLink = node => {
 }
 
 // 从节点中提取文本,支持行内样式(emphasis, strong, delete, link)
-// skipLink: 是否跳过链接生成(当节点已被识别为节点链接时使用)
-const getNodeText = (node, skipLink = false) => {
+const getNodeText = (node) => {
   if (node.type === 'list') return { text: '', hasRichText: false }
   
   let textStr = ''
@@ -153,34 +152,29 @@ const getNodeText = (node, skipLink = false) => {
       // 行内代码
       textStr += escapeHtml(item.value || '')
     } else if (item.type === 'link') {
-      const childResult = getNodeText(item, skipLink)
-      if (skipLink) {
-        // 如果跳过链接,只提取链接文本,不生成 <a> 标签
-        textStr += childResult.text
-      } else {
-        // 行内链接: 生成 <a> 标签保留超链接
-        hasRichText = true
-        const linkUrl = item.url || ''
-        textStr += `<a href="${escapeHtml(linkUrl)}" target="_blank">${childResult.text}</a>`
-      }
+      const childResult = getNodeText(item)
+      // 行内链接: 生成 <a> 标签保留超链接
+      hasRichText = true
+      const linkUrl = item.url || ''
+      textStr += `<a href="${escapeHtml(linkUrl)}" target="_blank">${childResult.text}</a>`
     } else if (item.type === 'emphasis') {
       // 斜体 *text*
       hasRichText = true
-      const childResult = getNodeText(item, skipLink)
+      const childResult = getNodeText(item)
       textStr += `<em>${childResult.text}</em>`
     } else if (item.type === 'strong') {
       // 加粗 **text**
       hasRichText = true
-      const childResult = getNodeText(item, skipLink)
+      const childResult = getNodeText(item)
       textStr += `<strong>${childResult.text}</strong>`
     } else if (item.type === 'delete') {
       // 删除线 ~~text~~
       hasRichText = true
-      const childResult = getNodeText(item, skipLink)
+      const childResult = getNodeText(item)
       textStr += `<del>${childResult.text}</del>`
     } else {
       // 其他类型,递归处理
-      const childResult = getNodeText(item, skipLink)
+      const childResult = getNodeText(item)
       textStr += childResult.text
       if (childResult.hasRichText) hasRichText = true
     }
@@ -282,20 +276,10 @@ const handleList = node => {
       let cur = arr[i]
       let node = {}
       
-      // 首先检查是否包含思源块引用(在提取文本之前)
-      let blockRefInfo = null
-      if (cur.children.length > 0 && cur.children[0].type === 'paragraph') {
-        const linkInfo = getNodeLink(cur.children[0])
-        if (linkInfo) {
-          blockRefInfo = linkInfo
-        }
-      }
-      
       // 只从第一个段落获取节点文本,其他段落作为子节点处理
       let textResult = { text: '', hasRichText: false }
       if (cur.children.length > 0 && cur.children[0].type === 'paragraph') {
-        // 如果检测到节点链接,跳过生成行内链接
-        textResult = getNodeText(cur.children[0], !!blockRefInfo)
+        textResult = getNodeText(cur.children[0])
       }
       
       node.data = {
@@ -321,17 +305,6 @@ const handleList = node => {
           node.data.image = imageInfo.url
           node.data.imageTitle = imageInfo.alt
           node.data.imageSize = { width: 100, height: 100 }
-        }
-        
-        // 设置节点链接(如果之前检测到)
-        if (blockRefInfo) {
-          node.data.hyperlink = blockRefInfo.url
-          node.data.hyperlinkTitle = blockRefInfo.title
-          // 如果节点文本为空或与链接标题相同,使用链接标题作为节点文本
-          if (!node.data.text || node.data.text === escapeHtml(blockRefInfo.title)) {
-            node.data.text = escapeHtml(blockRefInfo.title)
-            node.data.richText = false
-          }
         }
       }
       
@@ -435,12 +408,8 @@ export const transformMarkdownTo = md => {
       // 创建新节点
       let node = {}
       
-      // 检查是否只包含一个链接
-      const linkInfo = getNodeLink(cur)
-      
       // 获取节点文本和富文本标记
-      // 如果检测到节点链接,跳过生成行内链接
-      const textResult = getNodeText(cur, !!linkInfo)
+      const textResult = getNodeText(cur)
       node.data = {
         text: textResult.text
       }
@@ -451,17 +420,6 @@ export const transformMarkdownTo = md => {
         node.data.text = `<p><span>${textResult.text}</span></p>`
       } else {
         node.data.richText = false
-      }
-      
-      // 设置节点链接(如果检测到)
-      if (linkInfo) {
-        node.data.hyperlink = linkInfo.url
-        node.data.hyperlinkTitle = linkInfo.title
-        // 如果节点文本为空或与链接标题相同,使用链接标题作为节点文本
-        if (!node.data.text || node.data.text === escapeHtml(linkInfo.title)) {
-          node.data.text = escapeHtml(linkInfo.title)
-          node.data.richText = false
-        }
       }
       
       // 检查下一个块是否是段落且包含图片
@@ -539,12 +497,8 @@ export const transformMarkdownTo = md => {
       // 处理段落: 把段落作为单独的节点加入当前层级
       if (!cur.children || !cur.children.length) continue
       
-      // 首先检查是否包含思源块引用(在提取文本之前)
-      const blockRefInfo = getNodeLink(cur)
-      
       let node = {}
-      // 如果检测到节点链接,跳过生成行内链接
-      const textResult = getNodeText(cur, !!blockRefInfo)
+      const textResult = getNodeText(cur)
       node.data = {
         text: textResult.text
       }
@@ -561,16 +515,6 @@ export const transformMarkdownTo = md => {
         node.data.image = imageInfo.url
         node.data.imageTitle = imageInfo.alt
         node.data.imageSize = { width: 100, height: 100 }
-      }
-      // 设置节点链接(如果检测到)
-      if (blockRefInfo) {
-        node.data.hyperlink = blockRefInfo.url
-        node.data.hyperlinkTitle = blockRefInfo.title
-        // 如果节点文本为空或与链接标题相同,使用链接标题作为节点文本
-        if (!node.data.text || node.data.text === escapeHtml(blockRefInfo.title)) {
-          node.data.text = escapeHtml(blockRefInfo.title)
-          node.data.richText = false
-        }
       }
       currentChildren.push(node)
     }

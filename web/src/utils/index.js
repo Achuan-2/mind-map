@@ -119,6 +119,10 @@ export const transformToMarkdownList = (root) => {
         const tagName = child.tagName.toLowerCase()
         const innerMarkdown = convertToMarkdown(child)
         switch (tagName) {
+          case 'a':
+            const href = child.getAttribute('href') || ''
+            result += `[${innerMarkdown}](${href})`
+            break
           case 'strong':
           case 'b':
             result += `**${innerMarkdown}**`
@@ -146,7 +150,11 @@ export const transformToMarkdownList = (root) => {
     const raw = node.data && node.data.text != null ? node.data.text : ''
     const text = htmlToMarkdown(raw)
     const prefix = '  '.repeat(level) + '- '
-    str += prefix + text + '\n'
+    str += prefix + text
+    if (node.data && node.data.hyperlink) {
+      str += ` [🔗](${node.data.hyperlink})`
+    }
+    str += '\n'
     if (node.children && node.children.length > 0) {
       node.children.forEach(child => {
         walk(child, level + 1)
