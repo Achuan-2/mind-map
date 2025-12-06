@@ -252,7 +252,8 @@ export default {
       waitingWriteToLocalFile: false,
       hasBlockSetting: false,
       blockSettings: null,
-      refreshing: false
+      refreshing: false,
+      currentImageUrl: '' // 当前思维导图的图片URL
     }
   },
   computed: {
@@ -294,6 +295,24 @@ export default {
   created() {
     this.$bus.$on('write_local_file', this.onWriteLocalFile)
     this.$bus.$on('block_setting_updated', this.checkBlockSetting)
+    
+    // 主动请求当前图片URL
+    window.parent.postMessage(JSON.stringify({
+      event: 'get_current_image_url'
+    }), '*')
+    
+    // 监听响应
+    const messageHandler = (event) => {
+      try {
+        const message = JSON.parse(event.data)
+        if (message.event === 'current_image_url_response' && message.imageUrl) {
+          this.currentImageUrl = message.imageUrl
+          console.log('[Toolbar] Got image URL:', this.currentImageUrl)
+        }
+      } catch (e) {}
+    }
+    window.addEventListener('message', messageHandler)
+    this._imageUrlMessageHandler = messageHandler
   },
   mounted() {
     this.computeToolbarShow()
@@ -312,6 +331,9 @@ export default {
     this.$bus.$off('lang_change', this.computeToolbarShowThrottle)
     window.removeEventListener('beforeunload', this.onUnload)
     this.$bus.$off('node_note_dblclick', this.onNodeNoteDblclick)
+    if (this._imageUrlMessageHandler) {
+      window.removeEventListener('message', this._imageUrlMessageHandler)
+    }
   },
   methods: {
     // 计算工具按钮如何显示
@@ -835,6 +857,34 @@ export default {
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
         .replace(/&apos;/g, "'")
+
+      // 过滤掉当前思维导图图片的引用（避免循环引用）
+      if (this.currentImageUrl) {
+        console.log('[Toolbar] Current image URL:', this.currentImageUrl)
+        console.log('[Toolbar] Content before filter (first 500 chars):', mdContent.substring(0, 500))
+        
+        // 提取图片文件名（支持 assets/xxx.png 和 /assets/xxx.png 格式）
+        const imageFileName = this.currentImageUrl.split('/').pop()
+        
+        // 匹配多种可能的图片引用格式
+        // 1. ![xxx](assets/filename.png)
+        // 2. ![xxx](/assets/filename.png) 
+        // 3. ![xxx](./assets/filename.png)
+        const patterns = [
+          new RegExp(`!\\[.*?\\]\\([^)]*${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+          new RegExp(`!\\[.*?\\]\\(/?assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+          new RegExp(`!\\[.*?\\]\\(\\./assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g')
+        ]
+        
+        patterns.forEach(pattern => {
+          mdContent = mdContent.replace(pattern, '')
+        })
+        
+        console.log('[Toolbar] Content after filter (first 500 chars):', mdContent.substring(0, 500))
+        
+        // 清理连续的空行（过滤图片后可能产生）
+        mdContent = mdContent.replace(/\n{3,}/g, '\n\n')
+      }
 
       const title = cleanText(blockInfo.content || blockInfo.name || '内容')
 

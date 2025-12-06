@@ -170,7 +170,8 @@ export default {
       maxLevel: 0, // 0 表示不限制
       autoRefresh: false,
       querying: false,
-      importing: false
+      importing: false,
+      currentImageUrl: '' // 当前思维导图的图片URL
     }
   },
   computed: {
@@ -197,9 +198,12 @@ export default {
     // 加载保存的设置
     async loadSavedSettings() {
       try {
-        // 通过 postMessage 请求父窗口的块属性
+        // 通过 postMessage 请求父窗口的块属性和图片URL
         window.parent.postMessage(JSON.stringify({
           event: 'get_block_setting'
+        }), '*')
+        window.parent.postMessage(JSON.stringify({
+          event: 'get_current_image_url'
         }), '*')
 
         // 监听响应
@@ -207,7 +211,6 @@ export default {
           try {
             const message = JSON.parse(event.data)
             if (message.event === 'block_setting_response') {
-              window.removeEventListener('message', handler)
               if (message.settings) {
                 const settings = message.settings
                 if (settings.blockId) this.blockId = settings.blockId
@@ -219,6 +222,11 @@ export default {
                 if (this.blockId) {
                   this.queryBlockInfo()
                 }
+              }
+            } else if (message.event === 'current_image_url_response') {
+              if (message.imageUrl) {
+                this.currentImageUrl = message.imageUrl
+                console.log('[NoteToMindmap] Got image URL:', this.currentImageUrl)
               }
             }
           } catch (e) {}
@@ -450,6 +458,35 @@ export default {
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
         .replace(/&apos;/g, "'")
+
+        console.log(this.currentImageUrl)
+      // 过滤掉当前思维导图图片的引用（避免循环引用）
+      if (this.currentImageUrl) {
+        console.log('[NoteToMindmap] Current image URL:', this.currentImageUrl)
+        console.log('[NoteToMindmap] Content before filter (first 500 chars):', mdContent.substring(0, 500))
+        
+        // 提取图片文件名（支持 assets/xxx.png 和 /assets/xxx.png 格式）
+        const imageFileName = this.currentImageUrl.split('/').pop()
+        
+        // 匹配多种可能的图片引用格式
+        // 1. ![xxx](assets/filename.png)
+        // 2. ![xxx](/assets/filename.png) 
+        // 3. ![xxx](./assets/filename.png)
+        const patterns = [
+          new RegExp(`!\\[.*?\\]\\([^)]*${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+          new RegExp(`!\\[.*?\\]\\(/?assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+          new RegExp(`!\\[.*?\\]\\(\\./assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g')
+        ]
+        
+        patterns.forEach(pattern => {
+          mdContent = mdContent.replace(pattern, '')
+        })
+        
+        console.log('[NoteToMindmap] Content after filter (first 500 chars):', mdContent.substring(0, 500))
+        
+        // 清理连续的空行（过滤图片后可能产生）
+        mdContent = mdContent.replace(/\n{3,}/g, '\n\n')
+      }
 
       const title = cleanText(this.blockInfo.content || this.blockInfo.name || '内容')
 
