@@ -141,7 +141,24 @@ export default {
     // 加载保存的设置
     async loadSavedSettings() {
       try {
-        // 通过 postMessage 请求父窗口的块属性和图片URL
+        // 优先使用 takeOverApp 模式获取块设置
+        if (window.takeOverApp && window.takeOverAppMethods && window.takeOverAppMethods.getBlockSettings) {
+          const settings = window.takeOverAppMethods.getBlockSettings()
+          if (settings && settings.blockId) {
+            this.blockId = settings.blockId
+            if (settings.importType) this.importType = settings.importType
+            if (typeof settings.autoNumber === 'boolean') this.autoNumber = settings.autoNumber
+            if (typeof settings.maxLevel === 'number') this.maxLevel = settings.maxLevel
+            if (typeof settings.autoRefresh === 'boolean') this.autoRefresh = settings.autoRefresh
+            // 自动查询块信息
+            if (this.blockId) {
+              this.queryBlockInfo()
+            }
+            return
+          }
+        }
+
+        // 否则通过 postMessage 请求父窗口的块属性和图片URL
         window.parent.postMessage(JSON.stringify({
           event: 'get_block_setting'
         }), '*')
@@ -194,10 +211,17 @@ export default {
         maxLevel: this.maxLevel,
         autoRefresh: this.autoRefresh
       }
-      window.parent.postMessage(JSON.stringify({
-        event: 'save_block_setting',
-        settings: settings
-      }), '*')
+
+      // 优先使用 takeOverApp 模式保存
+      if (window.takeOverApp && window.takeOverAppMethods && window.takeOverAppMethods.saveBlockSettings) {
+        window.takeOverAppMethods.saveBlockSettings(settings)
+      } else {
+        // 否则通过 postMessage 发送
+        window.parent.postMessage(JSON.stringify({
+          event: 'save_block_setting',
+          settings: settings
+        }), '*')
+      }
 
       // 通知 Toolbar 更新刷新按钮显示状态
       this.$bus.$emit('block_setting_updated')
