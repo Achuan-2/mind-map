@@ -82,80 +82,13 @@
 
 <script>
 import { mapState } from 'vuex'
-import markdown from 'simple-mind-map/src/parse/markdown.js'
 import { storeData } from '@/api'
-
-// 思源API调用
-async function fetchSyncPost(url, data, returnType = 'json') {
-  const init = {
-    method: "POST",
-  };
-  if (data) {
-    if (data instanceof FormData) {
-      init.body = data;
-    } else {
-      init.body = JSON.stringify(data);
-    }
-  }
-  try {
-    const res = await fetch(url, init);
-    const res2 = returnType === 'json' ? await res.json() : await res.text();
-    return res2;
-  } catch (e) {
-    console.log(e);
-    return returnType === 'json' ? { code: e.code || 1, msg: e.message || "", data: null } : "";
-  }
-}
-
-// 清理文本：转换思源特有的 HTML 标签，保留富文本样式
-function cleanText(text) {
-  if (!text) return ''
-  
-  let result = text
-  
-  // 转换 HTML 实体
-  result = result
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
-  
-  // 转换思源富文本标签为标准 HTML
-  // <span data-type="strong">text</span> -> <strong>text</strong>
-  result = result.replace(/<span\s+data-type="strong"[^>]*>([\s\S]*?)<\/span>/gi, '<strong>$1</strong>')
-  // <span data-type="em">text</span> -> <em>text</em>
-  result = result.replace(/<span\s+data-type="em"[^>]*>([\s\S]*?)<\/span>/gi, '<em>$1</em>')
-  // <span data-type="s">text</span> -> <del>text</del> (删除线)
-  result = result.replace(/<span\s+data-type="s"[^>]*>([\s\S]*?)<\/span>/gi, '<del>$1</del>')
-  // <span data-type="u">text</span> -> <u>text</u> (下划线)
-  result = result.replace(/<span\s+data-type="u"[^>]*>([\s\S]*?)<\/span>/gi, '<u>$1</u>')
-  // <span data-type="mark">text</span> -> <mark>text</mark> (高亮)
-  result = result.replace(/<span\s+data-type="mark"[^>]*>([\s\S]*?)<\/span>/gi, '<mark>$1</mark>')
-  // <span data-type="sup">text</span> -> <sup>text</sup> (上标)
-  result = result.replace(/<span\s+data-type="sup"[^>]*>([\s\S]*?)<\/span>/gi, '<sup>$1</sup>')
-  // <span data-type="sub">text</span> -> <sub>text</sub> (下标)
-  result = result.replace(/<span\s+data-type="sub"[^>]*>([\s\S]*?)<\/span>/gi, '<sub>$1</sub>')
-  
-  // 移除带有 style 属性的 span 标签，只保留内容
-  result = result.replace(/<span\s+[^>]*style="[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, '$1')
-  
-  // 移除思源特有的其他标签（如 data-type="code", data-type="tag" 等），只保留内容
-  result = result.replace(/<span\s+data-type="(?:code|tag|kbd|text|block-ref|a)"[^>]*>([\s\S]*?)<\/span>/gi, '$1')
-  
-  // 移除剩余的空 span 标签
-  result = result.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, '$1')
-  
-  // 移除其他思源特有标签
-  result = result.replace(/<[^>]*data-type[^>]*>([\s\S]*?)<\/[^>]+>/gi, '$1')
-  
-  // 清理多余空格
-  result = result.replace(/\s+/g, ' ').trim()
-  
-  return result
-}
+import {
+  fetchSyncPost,
+  importOutline,
+  importContent,
+  applyAutoNumber
+} from '@/utils/noteImport'
 
 // 笔记转导图组件
 export default {
@@ -330,16 +263,16 @@ export default {
 
         if (this.blockInfo.type === 'd' && this.importType === 'outline') {
           // 导入文档大纲
-          mindmapData = await this.importOutline()
+          mindmapData = await importOutline(this.blockId, this.blockInfo, this.maxLevel)
         } else {
           // 导入内容（文档内容或块内容）
-          mindmapData = await this.importContent()
+          mindmapData = await importContent(this.blockId, this.blockInfo, this.maxLevel, this.currentImageUrl)
         }
 
         if (mindmapData) {
           // 应用自动编号
           if (this.autoNumber) {
-            this.applyAutoNumber(mindmapData)
+            applyAutoNumber(mindmapData)
           }
 
           // 标记为新版本数据
@@ -363,225 +296,6 @@ export default {
       } finally {
         this.importing = false
       }
-    },
-
-    // 导入文档大纲
-    async importOutline() {
-      const res = await fetchSyncPost('/api/outline/getDocOutline', {
-        id: this.blockId
-      })
-
-      if (res.code !== 0 || !res.data) {
-        throw new Error('Get outline failed')
-      }
-
-      const outline = res.data
-      const docTitle = cleanText(this.blockInfo.content || this.blockInfo.name || '文档')
-
-      // 转换大纲为思维导图数据
-      const root = {
-        data: {
-          text: docTitle,
-          hyperlink: `siyuan://blocks/${this.blockId}`,
-          hyperlinkTitle: docTitle
-        },
-        children: this.convertOutlineToMindmap(outline, 1)
-      }
-
-      return root
-    },
-
-    // 转换大纲数据为思维导图格式
-    convertOutlineToMindmap(outline, currentLevel = 1) {
-      if (!outline || !Array.isArray(outline)) return []
-      
-      // 如果设置了最大层级且当前层级超过限制，返回空数组
-      if (this.maxLevel > 0 && currentLevel > this.maxLevel) {
-        return []
-      }
-
-      // 检查文本是否包含富文本标签
-      const hasRichTextTags = (text) => {
-        return /<(strong|em|del|u|mark|sup|sub)>/i.test(text)
-      }
-
-      return outline.map(item => {
-        const text = cleanText(item.name || item.content || '')
-        const node = {
-          data: {
-            hyperlink: `siyuan://blocks/${item.id}`,
-            hyperlinkTitle: text.replace(/<[^>]+>/g, '') // 链接标题使用纯文本
-          },
-          children: []
-        }
-
-        // 处理富文本
-        if (hasRichTextTags(text)) {
-          node.data.richText = true
-          node.data.text = `<p><span>${text}</span></p>`
-        } else {
-          node.data.text = text
-        }
-
-        // 处理子节点 (blocks 或 children)
-        if (item.blocks && item.blocks.length > 0) {
-          node.children = this.convertOutlineToMindmap(item.blocks, currentLevel + 1)
-        }
-        if (item.children && item.children.length > 0) {
-          node.children = node.children.concat(this.convertOutlineToMindmap(item.children, currentLevel + 1))
-        }
-
-        return node
-      })
-    },
-
-    // 导入内容
-    async importContent() {
-      const res = await fetchSyncPost('/api/export/exportMdContent', {
-        id: this.blockId,
-        yfm: false,
-        fillCSSVar: true,
-        adjustHeadingLevel: true,
-        imgTag: false
-      })
-
-      if (!res?.data?.content) {
-        throw new Error('Export markdown content failed')
-      }
-
-      // 清理 Markdown 内容中的 HTML 实体
-      let mdContent = res.data.content
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&apos;/g, "'")
-
-        console.log(this.currentImageUrl)
-      // 过滤掉当前思维导图图片的引用（避免循环引用）
-      if (this.currentImageUrl) {
-        console.log('[NoteToMindmap] Current image URL:', this.currentImageUrl)
-        console.log('[NoteToMindmap] Content before filter (first 500 chars):', mdContent.substring(0, 500))
-        
-        // 提取图片文件名（支持 assets/xxx.png 和 /assets/xxx.png 格式）
-        const imageFileName = this.currentImageUrl.split('/').pop()
-        
-        // 匹配多种可能的图片引用格式
-        // 1. ![xxx](assets/filename.png)
-        // 2. ![xxx](/assets/filename.png) 
-        // 3. ![xxx](./assets/filename.png)
-        const patterns = [
-          new RegExp(`!\\[.*?\\]\\([^)]*${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
-          new RegExp(`!\\[.*?\\]\\(/?assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
-          new RegExp(`!\\[.*?\\]\\(\\./assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g')
-        ]
-        
-        patterns.forEach(pattern => {
-          mdContent = mdContent.replace(pattern, '')
-        })
-        
-        console.log('[NoteToMindmap] Content after filter (first 500 chars):', mdContent.substring(0, 500))
-        
-        // 清理连续的空行（过滤图片后可能产生）
-        mdContent = mdContent.replace(/\n{3,}/g, '\n\n')
-      }
-
-      const title = cleanText(this.blockInfo.content || this.blockInfo.name || '内容')
-
-      // 使用 markdown 解析器转换
-      const parsed = await markdown.transformMarkdownToWithImages(mdContent)
-
-      // 检查文本是否包含富文本标签
-      const hasRichTextTags = (text) => {
-        return /<(strong|em|del|u|mark|sup|sub)>/i.test(text)
-      }
-
-      // 递归清理所有节点的文本，并处理富文本
-      const cleanNodeText = (node) => {
-        if (node.data && node.data.text) {
-          const cleanedText = cleanText(node.data.text)
-          // 检查清理后的文本是否包含富文本标签
-          if (hasRichTextTags(cleanedText)) {
-            node.data.richText = true
-            node.data.text = `<p><span>${cleanedText}</span></p>`
-          } else {
-            node.data.text = cleanedText
-          }
-        }
-        if (node.children && node.children.length > 0) {
-          node.children.forEach(cleanNodeText)
-        }
-      }
-
-      // 按层级限制裁剪节点树
-      const trimByLevel = (node, currentLevel = 1) => {
-        if (this.maxLevel > 0 && currentLevel >= this.maxLevel) {
-          node.children = []
-        } else if (node.children && node.children.length > 0) {
-          node.children.forEach(child => trimByLevel(child, currentLevel + 1))
-        }
-      }
-
-      let root
-      if (parsed.children && parsed.children.length > 0) {
-        if (parsed.children.length === 1) {
-          root = parsed.children[0]
-        } else {
-          root = {
-            data: {
-              text: title,
-              hyperlink: `siyuan://blocks/${this.blockId}`,
-              hyperlinkTitle: title
-            },
-            children: parsed.children
-          }
-        }
-      } else {
-        root = {
-          data: {
-            text: title,
-            hyperlink: `siyuan://blocks/${this.blockId}`,
-            hyperlinkTitle: title
-          },
-          children: []
-        }
-      }
-
-      // 清理所有节点文本
-      cleanNodeText(root)
-
-      // 应用层级限制
-      if (this.maxLevel > 0) {
-        trimByLevel(root)
-      }
-
-      // 为根节点添加链接（如果还没有）
-      if (!root.data.hyperlink) {
-        root.data.hyperlink = `siyuan://blocks/${this.blockId}`
-        root.data.hyperlinkTitle = title
-      }
-
-      return root
-    },
-
-    // 应用自动编号
-    applyAutoNumber(node, prefix = '') {
-      if (!node.children || node.children.length === 0) return
-
-      node.children.forEach((child, index) => {
-        const num = prefix ? `${prefix}.${index + 1}` : `${index + 1}`
-        const text = child.data.text || ''
-        
-        // 检查是否已有编号，避免重复添加
-        if (!/^\d+(\.\d+)*\s/.test(text)) {
-          child.data.text = `${num} ${text}`
-        }
-
-        // 递归处理子节点
-        this.applyAutoNumber(child, num)
-      })
     },
 
     // 取消

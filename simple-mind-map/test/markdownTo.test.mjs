@@ -16,6 +16,16 @@ const cases = [
   ,{ name: 'paragraph - web link', md: '[网页链接](https://github.com/Achuan-2/siyuan-plugin-simplemindmap/issues/19)' }
   ,{ name: 'paragraph - block ref', md: "((20251123204056-lsxs9hl '思源笔记丨思维导图mindmap插件'))" }
   ,{ name: 'mixed links', md: '- [思源笔记丨思维导图mindmap插件](siyuan://blocks/20251123204056-lsxs9hl)\n- ((20251123204056-lsxs9hl \'思源笔记丨思维导图mindmap插件\'))\n- [网页链接](https://github.com/Achuan-2/siyuan-plugin-simplemindmap/issues/19)\n[网页链接](https://github.com/Achuan-2/siyuan-plugin-simplemindmap/issues/19)' }
+  // 列表段落层级测试
+  ,{ name: 'list with paragraph children', md: `- 插件开源在Github：[Achuan-2/illustrator_sci_toolbox](https://github.com/Achuan-2/illustrator_sci_toolbox)
+
+  目前插件还具有其他功能
+
+  - 复制粘贴相对位置
+  - 形状大小批量复制
+  - 一键排列图片：可以批量调整图片宽高、一键排列整齐
+  - 交换两个形状的位置
+  - 一键添加label，一键更新label编号` }
 ]
 
 for (const c of cases) {
@@ -29,3 +39,4 @@ for (const c of cases) {
 }
 
 console.log('\nTest complete')
+

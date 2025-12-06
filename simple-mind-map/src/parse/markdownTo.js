@@ -291,9 +291,13 @@ const handleList = node => {
         }
       }
       
-      // 获取节点文本和富文本标记
-      // 如果检测到节点链接,跳过生成行内链接
-      const textResult = getNodeText(cur, !!blockRefInfo)
+      // 只从第一个段落获取节点文本,其他段落作为子节点处理
+      let textResult = { text: '', hasRichText: false }
+      if (cur.children.length > 0 && cur.children[0].type === 'paragraph') {
+        // 如果检测到节点链接,跳过生成行内链接
+        textResult = getNodeText(cur.children[0], !!blockRefInfo)
+      }
+      
       node.data = {
         text: textResult.text
       }
@@ -309,7 +313,7 @@ const handleList = node => {
       node.children = []
       newArr.push(node)
       
-      // 检查第一个子节点是否包含图片或链接
+      // 检查第一个子节点是否包含图片
       if (cur.children.length > 0 && cur.children[0].type === 'paragraph') {
         const imageInfo = getNodeImage(cur.children[0])
         if (imageInfo) {
@@ -331,22 +335,42 @@ const handleList = node => {
         }
       }
       
-      // 处理子节点
+      // 处理子节点(从索引1开始,跳过第一个已处理的段落)
       if (cur.children.length > 1) {
         for (let j = 1; j < cur.children.length; j++) {
           let cur2 = cur.children[j]
           if (cur2.type === 'list') {
-            walk(cur2.children, node.children)
+            // 检查前一个节点是否是段落节点
+            // 如果是,将列表作为该段落节点的子节点
+            if (j > 1 && cur.children[j - 1].type === 'paragraph' && node.children.length > 0) {
+              const lastChild = node.children[node.children.length - 1]
+              walk(cur2.children, lastChild.children)
+            } else {
+              walk(cur2.children, node.children)
+            }
           } else if (cur2.type === 'paragraph') {
             // 检查段落中是否有图片(如果第一个子节点还没有设置图片)
-            if (!node.data.image) {
-              const imageInfo = getNodeImage(cur2)
-              if (imageInfo) {
-                console.log('Found image in list (subsequent child):', imageInfo.url)
-                node.data.image = imageInfo.url
-                node.data.imageTitle = imageInfo.alt
-                node.data.imageSize = { width: 100, height: 100 }
+            const imageInfo = getNodeImage(cur2)
+            if (imageInfo && !node.data.image) {
+              console.log('Found image in list (subsequent child):', imageInfo.url)
+              node.data.image = imageInfo.url
+              node.data.imageTitle = imageInfo.alt
+              node.data.imageSize = { width: 100, height: 100 }
+            } else if (!imageInfo) {
+              // 如果段落没有图片,将段落作为子节点添加
+              const paragraphNode = {}
+              const paragraphTextResult = getNodeText(cur2)
+              paragraphNode.data = {
+                text: paragraphTextResult.text
               }
+              if (paragraphTextResult.hasRichText) {
+                paragraphNode.data.richText = true
+                paragraphNode.data.text = `<p><span>${paragraphTextResult.text}</span></p>`
+              } else {
+                paragraphNode.data.richText = false
+              }
+              paragraphNode.children = []
+              node.children.push(paragraphNode)
             }
           }
         }
