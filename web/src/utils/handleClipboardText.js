@@ -131,7 +131,8 @@ const handleClipboardText = async text => {
   }
   
   // Markdown判断: 列表/标题/加粗/斜体/删除线/链接/图片/行内代码/思源块引用等
-  const markdownDetect = /(^([\-\*]|\d+\.)\s)|(^#+\s)|(\*\*[^*\n]+\*\*)|(__[^\n_]+__)|(~{2}[^~\n]+~{2})|(`[^`\n]+`)|(!?\[[^\]]+\]\([^\)]+\))|(\(\([a-zA-Z0-9-]+\s+['"][^'"]+['"]\)\))/
+  // 使用多行模式 (m) 以便检测到非首行处的列表或标题（例如粘贴文本中第2行开始的列表）
+  const markdownDetect = /(^([\-\*]|\d+\.)\s)|(^#+\s)|(\*\*[^*\n]+\*\*)|(__[^\n_]+__)|(~{2}[^~\n]+~{2})|(`[^`\n]+`)|(!?\[[^\]]+\]\([^\)]+\))|(\(\([a-zA-Z0-9-]+\s+['"][^'"]+['"]\)\))/m
   if (markdownDetect.test(trimText)) {
     try {
       const res = await markdown.transformMarkdownToWithImages(text)
