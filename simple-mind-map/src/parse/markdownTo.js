@@ -11,18 +11,82 @@ const escapeHtml = (s) => {
 }
 
 // 思源块引用正则: ((blockId 'title')) 或 ((blockId "title"))
-const siyuanBlockRefRegex = /^\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)$/
+const siyuanBlockRefRegex = /\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)/g
 
 // 将思源块引用格式转换为 siyuan:// 链接
 const convertSiyuanBlockRef = (text) => {
-  const match = text.match(siyuanBlockRefRegex)
-  if (match) {
+  const singleMatch = /^\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)$/.test(text)
+  if (singleMatch) {
+    const match = text.match(/^\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)$/)
     return {
       url: `siyuan://blocks/${match[1]}`,
       title: match[2]
     }
   }
   return null
+}
+
+// 将文本中的思源块引用转换为 HTML 链接
+const convertInlineBlockRefs = (text) => {
+  // 检查是否包含块引用
+  if (!text.includes('((')) return { text: escapeHtml(text), hasRichText: false }
+  
+  let hasBlockRef = false
+  const result = text.replace(siyuanBlockRefRegex, (match, blockId, title) => {
+    hasBlockRef = true
+    const url = `siyuan://blocks/${blockId}`
+    return `<a href="${escapeHtml(url)}" target="_blank">${escapeHtml(title)}</a>`
+  })
+  
+  if (hasBlockRef) {
+    // 需要转义剩余的文本部分
+    // 先分割出链接和普通文本
+    let finalResult = ''
+    let lastIndex = 0
+    const linkRegex = /<a href="[^"]*" target="_blank">[^<]*<\/a>/g
+    let match
+    const links = []
+    
+    // 收集所有链接及其位置
+    while ((match = linkRegex.exec(result)) !== null) {
+      links.push({ start: match.index, end: match.index + match[0].length, html: match[0] })
+    }
+    
+    // 重新处理原始文本,对非块引用部分进行转义
+    let processedText = text
+    const blockRefMatches = []
+    let blockRefMatch
+    const blockRefRegex = /\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)/g
+    while ((blockRefMatch = blockRefRegex.exec(text)) !== null) {
+      blockRefMatches.push({ 
+        start: blockRefMatch.index, 
+        end: blockRefMatch.index + blockRefMatch[0].length,
+        blockId: blockRefMatch[1],
+        title: blockRefMatch[2]
+      })
+    }
+    
+    // 构建最终结果
+    lastIndex = 0
+    blockRefMatches.forEach(ref => {
+      // 添加块引用之前的文本(转义)
+      if (ref.start > lastIndex) {
+        finalResult += escapeHtml(text.substring(lastIndex, ref.start))
+      }
+      // 添加块引用链接
+      const url = `siyuan://blocks/${ref.blockId}`
+      finalResult += `<a href="${escapeHtml(url)}" target="_blank">${escapeHtml(ref.title)}</a>`
+      lastIndex = ref.end
+    })
+    // 添加剩余文本(转义)
+    if (lastIndex < text.length) {
+      finalResult += escapeHtml(text.substring(lastIndex))
+    }
+    
+    return { text: finalResult, hasRichText: true }
+  }
+  
+  return { text: escapeHtml(text), hasRichText: false }
 }
 
 // 从节点中提取链接信息(仅当节点只包含一个链接时)
@@ -70,13 +134,18 @@ const getNodeText = (node, skipLink = false) => {
 
   ;(node.children || []).forEach(item => {
     if (item.type === 'text') {
-      // 普通文本,需要转义
-      // 检查是否是思源块引用格式
-      const blockRef = convertSiyuanBlockRef(item.value.trim())
+      // 普通文本,需要转义并处理块引用
+      const value = item.value || ''
+      // 首先检查是否是纯块引用格式
+      const blockRef = convertSiyuanBlockRef(value.trim())
       if (blockRef) {
+        // 纯块引用,直接使用标题
         textStr += escapeHtml(blockRef.title)
       } else {
-        textStr += escapeHtml(item.value || '')
+        // 检查文本中是否包含块引用
+        const result = convertInlineBlockRefs(value)
+        textStr += result.text
+        if (result.hasRichText) hasRichText = true
       }
     } else if (item.type === 'inlineCode') {
       // 行内代码
