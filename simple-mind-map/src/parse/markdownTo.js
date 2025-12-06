@@ -11,13 +11,15 @@ const escapeHtml = (s) => {
 }
 
 // 思源块引用正则: ((blockId 'title')) 或 ((blockId "title"))
+// 标题部分匹配:不包含 ")) 序列的任意字符
 const siyuanBlockRefRegex = /\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)/g
 
 // 将思源块引用格式转换为 siyuan:// 链接
 const convertSiyuanBlockRef = (text) => {
-  const singleMatch = /^\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)$/.test(text)
+  // 使用更严格的正则:标题部分不能包含 ")) 序列
+  const singleMatch = /^\(\(([a-zA-Z0-9-]+)\s+['"]((?:(?!\)\)).)+)['"]\)\)$/.test(text)
   if (singleMatch) {
-    const match = text.match(/^\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)$/)
+    const match = text.match(/^\(\(([a-zA-Z0-9-]+)\s+['"]((?:(?!\)\)).)+)['"]\)\)$/)
     return {
       url: `siyuan://blocks/${match[1]}`,
       title: match[2]
@@ -401,6 +403,21 @@ export const transformMarkdownTo = md => {
         if (!node.data.text || node.data.text === escapeHtml(linkInfo.title)) {
           node.data.text = escapeHtml(linkInfo.title)
           node.data.richText = false
+        }
+      }
+      
+      // 检查下一个块是否是段落且包含图片
+      if (i + 1 < tree.children.length) {
+        const nextNode = tree.children[i + 1]
+        if (nextNode.type === 'paragraph') {
+          const imageInfo = getNodeImage(nextNode)
+          if (imageInfo) {
+            node.data.image = imageInfo.url
+            node.data.imageTitle = imageInfo.alt
+            node.data.imageSize = { width: 100, height: 100 }
+            // 跳过下一个段落节点,因为它已经被处理为图片
+            i++
+          }
         }
       }
       
