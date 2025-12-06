@@ -217,7 +217,6 @@ export async function importContent(blockId, blockInfo, maxLevel = 0, currentIma
       mdContent = mdContent.replace(pattern, '')
     })
     
-    console.log('[NoteImport] Content after filter (first 500 chars):', mdContent.substring(0, 500))
     
     // 清理连续的空行（过滤图片后可能产生）
     mdContent = mdContent.replace(/\n{3,}/g, '\n\n')
