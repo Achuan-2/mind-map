@@ -772,11 +772,7 @@ export default {
               console.warn('Get notebook final sort mode failed, fallback to 15', e)
             }
 
-            mindmapData = await importDocTree(notebookId, docPath, maxLevel, finalSort, blockInfo.content || blockInfo.name)
-            try {
-              mindmapData.data.hyperlink = `siyuan://blocks/${docId}`
-              mindmapData.data.hyperlinkTitle = (mindmapData.data.hyperlinkTitle) || (blockInfo.content || blockInfo.name || '')
-            } catch (e) {}
+            mindmapData = await importDocTree(notebookId, docPath, maxLevel, finalSort, blockInfo.content || blockInfo.name, docId)
           }
         } else if (blockInfo.type === 'd' && importType === 'outline') {
           // 导入文档大纲

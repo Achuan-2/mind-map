@@ -391,11 +391,7 @@ export default {
           }
 
           // 使用 importDocTree 生成子节点树，然后给根节点附加文档名与超链接
-          mindmapData = await importDocTree(notebookId, docPath, this.maxLevel, this.finalSortMode, this.blockInfo.content || this.blockInfo.name)
-          try {
-            mindmapData.data.hyperlink = `siyuan://blocks/${docId}`
-            mindmapData.data.hyperlinkTitle = (mindmapData.data.hyperlinkTitle) || (this.blockInfo.content || this.blockInfo.name || '')
-          } catch (e) {}
+          mindmapData = await importDocTree(notebookId, docPath, this.maxLevel, this.finalSortMode, this.blockInfo.content || this.blockInfo.name, docId)
         } else if (this.blockInfo.type === 'd' && this.importType === 'outline') {
           // 导入文档大纲
           mindmapData = await importOutline(this.blockId, this.blockInfo, this.maxLevel)
