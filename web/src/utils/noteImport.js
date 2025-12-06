@@ -366,7 +366,7 @@ export async function getDocTree(notebookId, path = '/', sortMode = 6) {
 }
 
 // 将文档树转换为思维导图格式并返回根节点
-export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, sortMode = 15, notebookName = '') {
+export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, sortMode = 15, notebookName = '', rootDocId = null) {
   // 当未显式传入 sortMode（null/undefined）或传入为 15（表示遵循“文档树”全局设置）时，读取笔记本配置以确定最终排序模式
   let finalSort = sortMode
   try {
@@ -410,9 +410,14 @@ export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, s
     })
   }
 
+  // 根节点：如果是文档，添加行内链接；如果是笔记本，使用纯文本
+  const rootText = notebookName || '文档树'
   const root = {
-    data: {
-      text: notebookName || '文档树'
+    data: rootDocId ? {
+      richText: true,
+      text: `<p><a href="siyuan://blocks/${rootDocId}" rel="noopener noreferrer" target="_blank">${rootText}</a></p>`
+    } : {
+      text: rootText
     },
     children: convert(tree, 1)
   }
