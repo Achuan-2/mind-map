@@ -194,7 +194,7 @@
 
 <script>
 import { mapState, mapMutations } from 'vuex'
-import { getTextFromHtml, imgToDataUrl } from 'simple-mind-map/src/utils'
+import { getTextFromHtml, imgToDataUrl, writeMindMapDataToPNG, downloadFile } from 'simple-mind-map/src/utils'
 import { transformToMarkdown } from 'simple-mind-map/src/parse/toMarkdown'
 import { transformToTxt } from 'simple-mind-map/src/parse/toTxt'
 import { setDataToClipboard, setImgToClipboard, copy, transformToMarkdownList } from '@/utils'
@@ -521,13 +521,23 @@ export default {
               return
             }
             const fileName = getTextFromHtml(currentNode.getData('text')) || 'node'
-            await this.mindMap.export(
+            // 先生成不下载的 PNG
+            let png = await this.mindMap.export(
               'png',
-              true,
+              false,
               fileName,
               false,
               currentNode
             )
+            // 获取当前导图数据并嵌入到 PNG 中
+            const mindMapData = this.mindMap.getData(true)
+            const mindMapConfig = {}
+            if (this.mindMap.opt.rainbowLinesConfig) {
+              mindMapConfig.rainbowLinesConfig = this.mindMap.opt.rainbowLinesConfig
+            }
+            png = writeMindMapDataToPNG(png, mindMapData, mindMapConfig)
+            // 手动下载
+            downloadFile(png, fileName + '.png')
             this.$message.success(this.$t('contextmenu.copySuccess') || '导出成功')
           } catch (error) {
             console.error('Export node to PNG failed:', error)
@@ -541,7 +551,18 @@ export default {
             return
           }
           try {
-            const png = await this.mindMap.export('png', false, '', false, currentNode)
+            let png = await this.mindMap.export('png', false, '', false, currentNode)
+            
+            // 获取当前导图数据并嵌入到 PNG 中
+            const mindMapData = this.mindMap.getData(true)
+            // 获取配置数据（rainbowLinesConfig 和其他设置）
+            const mindMapConfig = {}
+            if (this.mindMap.opt.rainbowLinesConfig) {
+              mindMapConfig.rainbowLinesConfig = this.mindMap.opt.rainbowLinesConfig
+            }
+            // 嵌入导图数据到 PNG
+            png = writeMindMapDataToPNG(png, mindMapData, mindMapConfig)
+            
             const blob = await imgToDataUrl(png, true)
             setImgToClipboard(blob)
             this.$message.success(this.$t('contextmenu.copySuccess'))
@@ -585,7 +606,14 @@ export default {
             str = transformToTxt(data)
             break
           case 'png':
-            const png = await this.mindMap.export('png', false)
+            let png = await this.mindMap.export('png', false)
+            // 获取当前导图数据并嵌入到 PNG 中
+            const mindMapData = this.mindMap.getData(true)
+            const mindMapConfig = {}
+            if (this.mindMap.opt.rainbowLinesConfig) {
+              mindMapConfig.rainbowLinesConfig = this.mindMap.opt.rainbowLinesConfig
+            }
+            png = writeMindMapDataToPNG(png, mindMapData, mindMapConfig)
             const blob = await imgToDataUrl(png, true)
             setImgToClipboard(blob)
             break
