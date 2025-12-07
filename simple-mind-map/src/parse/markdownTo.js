@@ -136,7 +136,11 @@ const getNodeText = (node) => {
   ;(node.children || []).forEach(item => {
     if (item.type === 'text') {
       // 普通文本,需要转义并处理块引用
-      const value = item.value || ''
+      let value = item.value || ''
+      // 将 $$...$$ 转换为 $...$
+      value = value.replace(/\$\$(.*?)\$\$/g, '$$$1$$')
+      // 移除文本中的 <kbd>...</kbd> 标签，保留并转义内部文本
+      value = value.replace(/<kbd>([\s\S]*?)<\/kbd>/gi, (m, g1) => escapeHtml(g1))
       // 首先检查是否是纯块引用格式
       const blockRef = convertSiyuanBlockRef(value.trim())
       if (blockRef) {
@@ -178,16 +182,26 @@ const getNodeText = (node) => {
       const childResult = getNodeText(item)
       textStr += `<u>${childResult.text}</u>`
     } else if (item.type === 'html' && item.value) {
-      // 处理 HTML 标签，包括下划线
+      // 处理 HTML 节点：移除所有 <kbd>...</kbd> 标签，保留标签内的纯文本（并转义）
       const htmlValue = item.value.trim()
-      if (htmlValue.startsWith('<u>') && htmlValue.endsWith('</u>')) {
-        // 下划线 <u>text</u>
-        hasRichText = true
-        const innerText = htmlValue.slice(3, -4) // 移除 <u> 和 </u>
-        textStr += `<u>${escapeHtml(innerText)}</u>`
+      // 如果是单独的 <kbd> 或 </kbd> 节点，则跳过（kbd 内容通常作为相邻的 text 节点出现）
+      if (/^<\s*kbd\s*>$/i.test(htmlValue) || /^<\s*\/\s*kbd\s*>$/i.test(htmlValue)) {
+        // 跳过，不添加任何文本
       } else {
-        // 其他 HTML 标签，直接输出
-        textStr += htmlValue
+        // 全局替换所有 <kbd>...</kbd> 内容为转义后的文本（处理可能在同一节点内的情形）
+        const processedHtml = htmlValue.replace(/<kbd>([\s\S]*?)<\/kbd>/gi, (m, g1) => {
+          return escapeHtml(g1)
+        })
+
+        // 保留之前对下划线 <u> 的特殊处理
+        if (processedHtml.startsWith('<u>') && processedHtml.endsWith('</u>')) {
+          hasRichText = true
+          const innerText = processedHtml.slice(3, -4) // 移除 <u> 和 </u>
+          textStr += `<u>${escapeHtml(innerText)}</u>`
+        } else {
+          // 其他 HTML 片段，直接输出处理后的字符串
+          textStr += processedHtml
+        }
       }
     } else {
       // 其他类型,递归处理
