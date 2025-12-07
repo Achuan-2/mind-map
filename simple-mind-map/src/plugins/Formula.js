@@ -1,4 +1,6 @@
 import katex from 'katex'
+
+import './mhchem.min.js';
 import Quill from 'quill'
 import { getChromeVersion, htmlEscape } from '../utils/index'
 import { getBaseStyleText, getFontStyleText } from './FormulaStyle'
