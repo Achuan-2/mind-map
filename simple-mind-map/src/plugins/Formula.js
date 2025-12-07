@@ -48,6 +48,7 @@ class Formula {
     const config = {
       throwOnError: false,
       errorColor: '#f00',
+      strict: false, // 允许中文等 Unicode 字符，避免警告
       output: 'mathml' // 默认只输出公式
     }
     let { getKatexOutputType } = this.mindMap.opt

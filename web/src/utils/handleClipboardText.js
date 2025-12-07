@@ -15,7 +15,7 @@ const escapeAttr = (s) => {
 // 生成 Quill 公式嵌入的 HTML
 const renderLatexWrapped = (expr, displayMode = false) => {
   try {
-    const katexHtml = katex.renderToString(expr, { throwOnError: false, displayMode, output: 'mathml' })
+    const katexHtml = katex.renderToString(expr, { throwOnError: false, displayMode, output: 'mathml', strict: false })
     return `<span class="ql-formula" data-value="${escapeAttr(expr)}"><span contenteditable="false">${katexHtml}</span></span>`
   } catch (e) {
     return escapeAttr(displayMode ? `$$${expr}$$` : `$${expr}$`)
