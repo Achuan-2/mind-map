@@ -5,7 +5,9 @@ import {
   removeHTMLEntities,
   resizeImgSize,
   handleSelfCloseTags,
-  addXmlns
+  addXmlns,
+  writeMindMapDataToPNG,
+  writeMindMapDataToSVG
 } from '../utils'
 import { SVG } from '@svgdotjs/svg.js'
 import drawBackgroundImageToCanvas from '../utils/simulateCSSBackgroundInCanvas'
@@ -390,7 +392,18 @@ class Export {
    * 方法2.把svg的图片提取出来再挨个绘制到canvas里，最后一起转换
    */
   async png(...args) {
-    const res = await this._image('image/png', ...args)
+    let res = await this._image('image/png', ...args)
+    
+    // 自动将思维导图数据写入PNG元数据
+    try {
+      // 获取完整的思维导图数据（包含 root、theme、layout、view）
+      const fullData = this.mindMap.getData(true)
+      // mindMapData 包含完整结构，mindMapConfig 留空（用于额外配置如彩虹线条）
+      res = writeMindMapDataToPNG(res, fullData, {})
+    } catch (e) {
+      console.error('Failed to write mindmap data to PNG:', e)
+    }
+    
     return res
   }
 
@@ -477,7 +490,18 @@ class Export {
     node.first().before(SVG(`<title>${name}</title>`))
     await this.drawBackgroundToSvg(node)
     const str = node.svg()
-    const res = await this.fixSvgStrAndToBlob(str)
+    let res = await this.fixSvgStrAndToBlob(str)
+    
+    // 自动将思维导图数据写入SVG元数据
+    try {
+      // 获取完整的思维导图数据（包含 root、theme、layout、view）
+      const fullData = this.mindMap.getData(true)
+      // mindMapData 包含完整结构，mindMapConfig 留空（用于额外配置如彩虹线条）
+      res = writeMindMapDataToSVG(res, fullData, {})
+    } catch (e) {
+      console.error('Failed to write mindmap data to SVG:', e)
+    }
+    
     return res
   }
 

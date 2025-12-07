@@ -59,6 +59,7 @@
 <script>
 import xmind from 'simple-mind-map/src/parse/xmind.js'
 import markdown from 'simple-mind-map/src/parse/markdown.js'
+import { readMindMapDataFromPNG, readMindMapDataFromSVG } from 'simple-mind-map/src/utils/index.js'
 import { mapMutations } from 'vuex'
 import Vue from 'vue'
 
@@ -77,7 +78,7 @@ export default {
   },
   computed: {
     supportFileStr() {
-      return '.smm,.json,.xmind,.md'
+      return '.smm,.json,.xmind,.md,.png,.svg'
     }
   },
   watch: {
@@ -105,7 +106,7 @@ export default {
     },
 
     getRegexp() {
-      return new RegExp(`\.(smm|json|xmind|md)$`)
+      return new RegExp(`\.(smm|json|xmind|md|png|svg)$`)
     },
 
     // 检查url中是否操作需要打开的文件
@@ -129,6 +130,9 @@ export default {
           this.handleXmind(data)
         } else if (type === 'md') {
           this.handleMd(data)
+        } else if (type === 'png' || type === 'svg') {
+          // 处理导出的图片（包含思维导图元数据）
+          this.handleImageFile({ raw: file, name: fileURL.split('/').pop() })
         }
       } catch (error) {
         console.log(error)
@@ -177,9 +181,45 @@ export default {
         this.handleXmind(file)
       } else if (/\.md$/.test(file.name)) {
         this.handleMd(file)
+      } else if (/\.png$/.test(file.name) || /\.svg$/.test(file.name)) {
+        this.handleImageFile(file)
       }
       this.cancel()
       this.setActiveSidebar(null)
+    },
+
+    // 处理 PNG / SVG 文件（从 dataURL 中读取嵌入的思维导图数据）
+    handleImageFile(file) {
+      const name = file.name || ''
+      const isPng = /\.png$/.test(name)
+      const isSvg = /\.svg$/.test(name)
+      const reader = new FileReader()
+      reader.readAsDataURL(file.raw)
+      reader.onload = evt => {
+        try {
+          const dataUrl = evt.target.result
+          let parsed = null
+          if (isPng) {
+            parsed = readMindMapDataFromPNG(dataUrl)
+          } else if (isSvg) {
+            parsed = readMindMapDataFromSVG(dataUrl)
+          }
+          if (parsed && parsed.mindMapData) {
+            // mindMapData 可能已经是完整结构 { root, theme, layout, view }
+            this.$bus.$emit('setData', parsed.mindMapData)
+            this.$message.success(this.$t('import.importSuccess'))
+          } else {
+            this.$message.error(this.$t('import.fileParsingFailed'))
+          }
+        } catch (e) {
+          console.log(e)
+          this.$message.error(this.$t('import.fileParsingFailed'))
+        }
+      }
+      reader.onerror = e => {
+        console.log(e)
+        this.$message.error(this.$t('import.fileParsingFailed'))
+      }
     },
 
     // 处理.smm文件
