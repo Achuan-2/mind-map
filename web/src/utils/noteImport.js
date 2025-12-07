@@ -162,7 +162,7 @@ export async function importOutline(blockId, blockInfo, maxLevel = 0) {
   })
 
   if (res.code !== 0 || !res.data) {
-    throw new Error('Get outline failed')
+    throw new Error('无法获取到文档大纲')
   }
 
   const outline = res.data
