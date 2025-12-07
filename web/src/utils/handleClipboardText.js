@@ -1,5 +1,49 @@
 import { imgToDataUrl } from 'simple-mind-map/src/utils/index'
 import markdown from 'simple-mind-map/src/parse/markdown.js'
+import katex from 'katex'
+
+// 属性值转义（用于 data-value）
+const escapeAttr = (s) => {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+// 生成 Quill 公式嵌入的 HTML
+const renderLatexWrapped = (expr, displayMode = false) => {
+  try {
+    const katexHtml = katex.renderToString(expr, { throwOnError: false, displayMode, output: 'mathml' })
+    return `<span class="ql-formula" data-value="${escapeAttr(expr)}"><span contenteditable="false">${katexHtml}</span></span>`
+  } catch (e) {
+    return escapeAttr(displayMode ? `$$${expr}$$` : `$${expr}$`)
+  }
+}
+
+// 检测并渲染文本中的 LaTeX 公式，返回 { html, hasFormula }
+// $$...$$ 和 $...$ 都处理为行内公式（inline mode）
+const processLatexInText = (text) => {
+  if (!text || text.indexOf('$') === -1) return { html: text, hasFormula: false }
+
+  let hasFormula = false
+  let result = text
+
+  // 先处理 $$...$$，转换为行内公式（与 $...$ 相同处理）
+  result = result.replace(/\$\$([\s\S]+?)\$\$/g, (match, expr) => {
+    hasFormula = true
+    return renderLatexWrapped(expr.trim(), false)
+  })
+
+  // 再处理 $...$ (inline mode)
+  result = result.replace(/\$([^\$\n]+?)\$/g, (match, expr) => {
+    hasFormula = true
+    return renderLatexWrapped(expr.trim(), false)
+  })
+
+  return { html: result, hasFormula }
+}
 
 // 处理知犀
 const handleZHIXI = async data => {
@@ -148,6 +192,25 @@ const handleClipboardText = async text => {
       console.error(e)
     }
   }
+
+  // 检测纯 LaTeX 公式粘贴（包含 $...$ 或 $$...$$）
+  if (trimText.indexOf('$') !== -1) {
+    const latexResult = processLatexInText(trimText)
+    if (latexResult.hasFormula) {
+      // 返回包含公式的富文本节点
+      return {
+        simpleMindMap: true,
+        data: [{
+          data: {
+            text: `<p><span>${latexResult.html}</span></p>`,
+            richText: true
+          },
+          children: []
+        }]
+      }
+    }
+  }
+
   return ''
 }
 

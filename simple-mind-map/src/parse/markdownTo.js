@@ -10,6 +10,89 @@ const escapeHtml = (s) => {
     .replace(/>/g, '&gt;')
 }
 
+// KaTeX 渲染（用于在导入时把 $...$ / $$...$$ 转为 HTML/MathML）
+import katex from 'katex'
+
+const renderLatex = (expr, displayMode = false) => {
+  try {
+    // 使用 mathml 输出以兼容原有渲染（Formula 插件也使用 mathml 输出）
+    return katex.renderToString(expr, { throwOnError: false, displayMode, output: 'mathml' })
+  } catch (e) {
+    return escapeHtml(displayMode ? `$$${expr}$$` : `$${expr}$`)
+  }
+}
+
+// 属性值转义（用于 data-value）
+const escapeAttr = (s) => {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+// 生成 Quill 公式嵌入的 HTML：<span class="ql-formula" data-value="...">...</span>
+const renderLatexWrapped = (expr, displayMode = false) => {
+  try {
+    const katexHtml = katex.renderToString(expr, { throwOnError: false, displayMode, output: 'mathml' })
+    // 包裹为 Quill formula blot 的结构，保持 contenteditable=false 以匹配编辑器行为
+    return `<span class="ql-formula" data-value="${escapeAttr(expr)}"><span contenteditable="false">${katexHtml}</span></span>`
+  } catch (e) {
+    return escapeHtml(displayMode ? `$$${expr}$$` : `$${expr}$`)
+  }
+}
+
+// 在一段纯文本中查找并渲染 LaTeX，返回 { text, replaced }
+// $$...$$ 和 $...$ 都处理为行内公式（inline mode）
+const processTextWithLatex = (text) => {
+  if (!text || text.indexOf('$') === -1) return { text: escapeHtml(text), replaced: false }
+
+  let replaced = false
+  let out = ''
+  let lastIndex = 0
+
+  // 先匹配 $$...$$，转换为行内公式（与 $...$ 相同处理）
+  const displayRegex = /\$\$([\s\S]+?)\$\$/g
+  let m
+  while ((m = displayRegex.exec(text)) !== null) {
+    const idx = m.index
+    const expr = m[1]
+    if (idx > lastIndex) {
+      out += escapeHtml(text.substring(lastIndex, idx))
+    }
+    out += renderLatexWrapped(expr, false)
+    replaced = true
+    lastIndex = displayRegex.lastIndex
+  }
+  // 如果有 $$...$$ 且已经处理过，则把剩余尾部加入并返回
+  if (lastIndex > 0) {
+    if (lastIndex < text.length) out += escapeHtml(text.substring(lastIndex))
+    return { text: out, replaced }
+  }
+
+  // 否则处理行内 $...$
+  lastIndex = 0
+  const inlineRegex = /\$([^\$\n]+?)\$/g
+  while ((m = inlineRegex.exec(text)) !== null) {
+    const idx = m.index
+    const expr = m[1]
+    if (idx > lastIndex) {
+      out += escapeHtml(text.substring(lastIndex, idx))
+    }
+    out += renderLatexWrapped(expr, false)
+    replaced = true
+    lastIndex = inlineRegex.lastIndex
+  }
+  if (lastIndex > 0) {
+    if (lastIndex < text.length) out += escapeHtml(text.substring(lastIndex))
+    return { text: out, replaced }
+  }
+
+  // 没有匹配到 LaTeX，直接转义
+  return { text: escapeHtml(text), replaced: false }
+}
+
 // 思源块引用正则: ((blockId 'title')) 或 ((blockId "title"))
 // 标题部分匹配:不包含 ")) 序列的任意字符
 const siyuanBlockRefRegex = /\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)/g
@@ -28,67 +111,57 @@ const convertSiyuanBlockRef = (text) => {
   return null
 }
 
-// 将文本中的思源块引用转换为 HTML 链接
+// 将文本中的思源块引用转换为 HTML 链接，同时渲染 LaTeX（如果有）
 const convertInlineBlockRefs = (text) => {
-  // 检查是否包含块引用
-  if (!text.includes('((')) return { text: escapeHtml(text), hasRichText: false }
-  
+  // 快速路径：没有块引用也没有 $ 时，直接返回转义文本
+  if (!text.includes('((') && text.indexOf('$') === -1) return { text: escapeHtml(text), hasRichText: false }
+
+  // 先用正则替换块引用为临时占位 HTML（链接）
   let hasBlockRef = false
   const result = text.replace(siyuanBlockRefRegex, (match, blockId, title) => {
     hasBlockRef = true
     const url = `siyuan://blocks/${blockId}`
     return `<a href="${escapeHtml(url)}" target="_blank">${escapeHtml(title)}</a>`
   })
-  
+
+  // 如果包含块引用，逐段处理：对普通文本段落做转义并渲染 LaTeX，块引用保持为链接 HTML
   if (hasBlockRef) {
-    // 需要转义剩余的文本部分
-    // 先分割出链接和普通文本
-    let finalResult = ''
-    let lastIndex = 0
-    const linkRegex = /<a href="[^"]*" target="_blank">[^<]*<\/a>/g
-    let match
-    const links = []
-    
-    // 收集所有链接及其位置
-    while ((match = linkRegex.exec(result)) !== null) {
-      links.push({ start: match.index, end: match.index + match[0].length, html: match[0] })
-    }
-    
-    // 重新处理原始文本,对非块引用部分进行转义
-    let processedText = text
+    const blockRefRegex = /\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)/g
     const blockRefMatches = []
     let blockRefMatch
-    const blockRefRegex = /\(\(([a-zA-Z0-9-]+)\s+['"](.+?)['"]\)\)/g
     while ((blockRefMatch = blockRefRegex.exec(text)) !== null) {
-      blockRefMatches.push({ 
-        start: blockRefMatch.index, 
+      blockRefMatches.push({
+        start: blockRefMatch.index,
         end: blockRefMatch.index + blockRefMatch[0].length,
         blockId: blockRefMatch[1],
         title: blockRefMatch[2]
       })
     }
-    
-    // 构建最终结果
-    lastIndex = 0
+
+    let finalResult = ''
+    let lastIndex = 0
     blockRefMatches.forEach(ref => {
-      // 添加块引用之前的文本(转义)
       if (ref.start > lastIndex) {
-        finalResult += escapeHtml(text.substring(lastIndex, ref.start))
+        const seg = text.substring(lastIndex, ref.start)
+        const processed = processTextWithLatex(seg)
+        finalResult += processed.text
       }
-      // 添加块引用链接
       const url = `siyuan://blocks/${ref.blockId}`
       finalResult += `<a href="${escapeHtml(url)}" rel="noopener noreferrer" target="_blank">${escapeHtml(ref.title)}</a>`
       lastIndex = ref.end
     })
-    // 添加剩余文本(转义)
     if (lastIndex < text.length) {
-      finalResult += escapeHtml(text.substring(lastIndex))
+      const seg = text.substring(lastIndex)
+      const processed = processTextWithLatex(seg)
+      finalResult += processed.text
     }
-    
+
     return { text: finalResult, hasRichText: true }
   }
-  
-  return { text: escapeHtml(text), hasRichText: false }
+
+  // 没有块引用但可能包含 LaTeX
+  const processed = processTextWithLatex(text)
+  return { text: processed.text, hasRichText: processed.replaced }
 }
 
 // 从节点中提取链接信息(仅当节点只包含一个链接时)
@@ -137,8 +210,7 @@ const getNodeText = (node) => {
     if (item.type === 'text') {
       // 普通文本,需要转义并处理块引用
       let value = item.value || ''
-      // 将 $$...$$ 转换为 $...$
-      value = value.replace(/\$\$(.*?)\$\$/g, '$$$1$$')
+      // (之前有将 $$...$$ 转换为 $...$ 的处理，已移除，改为使用 katex 渲染)
       // 移除文本中的 <kbd>...</kbd> 标签，保留并转义内部文本
       value = value.replace(/<kbd>([\s\S]*?)<\/kbd>/gi, (m, g1) => escapeHtml(g1))
       // 首先检查是否是纯块引用格式
