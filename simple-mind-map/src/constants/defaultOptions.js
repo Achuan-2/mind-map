@@ -61,9 +61,9 @@ export const defaultOpt = {
   // 当mousewheelAction设为zoom时，或者按住Ctrl键时，默认向前滚动是缩小，向后滚动是放大，如果该属性设为true，那么会反过来
   mousewheelZoomActionReverse: true,
   // 默认插入的二级节点的文字
-  defaultInsertSecondLevelNodeText: '二级节点',
+  defaultInsertSecondLevelNodeText: '',
   // 默认插入的二级以下节点的文字
-  defaultInsertBelowSecondLevelNodeText: '分支主题',
+  defaultInsertBelowSecondLevelNodeText: '',
   // 展开收起按钮的颜色
   expandBtnStyle: {
     color: '#808080',
