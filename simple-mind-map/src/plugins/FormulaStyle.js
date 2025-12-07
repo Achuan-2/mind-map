@@ -125,6 +125,19 @@ export const getFontStyleText = fontPath => {
 
 export const getBaseStyleText = () => {
   return `
+/* mhchem 化学公式箭头上方文字居中修复 */
+.katex mover > mpadded {
+  width: auto !important;
+  lspace: 0 !important;
+}
+.katex mover > mpadded[lspace] {
+  margin-left: -12px !important;
+  padding-left: 0 !important;
+}
+/* 让箭头上方文字居中 */
+.katex math mover {
+  text-align: center;
+}
 .katex {
   font: normal 1.21em KaTeX_Main, Times New Roman, serif;
   line-height: 1.2;
