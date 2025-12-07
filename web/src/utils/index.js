@@ -138,6 +138,22 @@ export const transformToMarkdownList = (root) => {
           case 'u':
             result += `<u>${innerMarkdown}</u>`
             break
+          case 'span':
+            // 处理数学公式
+            if (child.classList.contains('ql-formula')) {
+              const formula = child.getAttribute('data-value') || ''
+              // 还原 HTML 实体
+              const decodedFormula = formula
+                .replace(/&amp;/g, '&')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+              result += `$${decodedFormula}$`
+            } else {
+              result += innerMarkdown
+            }
+            break
           default:
             result += innerMarkdown
             break

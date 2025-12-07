@@ -9,12 +9,34 @@ const convertHtmlToMarkdownLinks = html => {
   })
 }
 
+// 将HTML中的数学公式（ql-formula）转换为Markdown格式 $...$
+const convertHtmlToMarkdownFormulas = html => {
+  if (!html) return html
+  // 匹配 <span class="ql-formula" data-value="...">...</span>
+  // data-value 中存储的是原始 LaTeX 表达式
+  return html.replace(
+    /<span\s+class="ql-formula"\s+data-value="([^"]*)"[^>]*>[\s\S]*?<\/span><\/span>/gi,
+    (match, formula) => {
+      // 还原 HTML 实体
+      const decodedFormula = formula
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+      return `$${decodedFormula}$`
+    }
+  )
+}
+
 const getNodeText = data => {
   if (data.richText) {
-    // 先转换为纯文本，然后转换链接
-    const textWithLinks = convertHtmlToMarkdownLinks(data.text)
+    // 先转换公式为 $...$
+    let text = convertHtmlToMarkdownFormulas(data.text)
+    // 然后转换链接为 Markdown 格式
+    text = convertHtmlToMarkdownLinks(text)
     // 如果还有HTML标签，使用nodeRichTextToTextWithWrap处理其他标签
-    return nodeRichTextToTextWithWrap(textWithLinks)
+    return nodeRichTextToTextWithWrap(text)
   } else {
     return data.text
   }
