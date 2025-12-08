@@ -116,6 +116,9 @@
       <div class="item" @click="exec('COPY_CUR_NODE_TO_PNG')" v-if="enableCopyToClipboardApi">
         <span class="name">{{ $t('contextmenu.copyNodeToPng') }}</span>
       </div>
+      <div class="item" @click="exec('COPY_CUR_NODE_TO_SIYUAN')">
+        <span class="name">{{ $t('contextmenu.copyNodeToSiyuan') || '复制为思源图片' }}</span>
+      </div>
       <div class="splitLine" v-if="enableAi"></div>
       <div class="item" @click="aiCreate" v-if="enableAi">
         <span class="name">{{ $t('contextmenu.aiCreate') }}</span>
@@ -197,7 +200,8 @@ import { mapState, mapMutations } from 'vuex'
 import { getTextFromHtml, imgToDataUrl, writeMindMapDataToPNG, downloadFile } from 'simple-mind-map/src/utils'
 import { transformToMarkdown } from 'simple-mind-map/src/parse/toMarkdown'
 import { transformToTxt } from 'simple-mind-map/src/parse/toTxt'
-import { setDataToClipboard, setImgToClipboard, copy, transformToMarkdownList } from '@/utils'
+import { setDataToClipboard, setImgToClipboard, copy, transformToMarkdownList, dataURLToBlob } from '@/utils'
+import{fetchSyncPost } from '@/utils/noteImport'
 import { numberTypeList, numberLevelList } from '@/config'
 
 // 右键菜单
@@ -337,6 +341,40 @@ export default {
   methods: {
     ...mapMutations(['setLocalConfig']),
 
+    // 抽取节点子树数据（结构递归）并保留节点中使用的图片 base64
+    getNodeDataRecursive(node) {
+      if (!node) return null
+      return {
+        data: { ...node.getData() },
+        children: (node.children || []).map(child => this.getNodeDataRecursive(child))
+      }
+    },
+
+    getNodeSubtreeData(node) {
+      const nodeData = this.getNodeDataRecursive(node)
+      // collect images used by nodes, if renderer provides helper
+      let imgMap = {}
+      try {
+        if (this.mindMap && this.mindMap.renderer && this.mindMap.renderer.collectImagesFromNodes) {
+          imgMap = this.mindMap.renderer.collectImagesFromNodes([nodeData]) || {}
+        }
+      } catch (e) {
+        console.error('collectImagesFromNodes error', e)
+      }
+      if (imgMap && Object.keys(imgMap).length > 0) {
+        nodeData.data = nodeData.data || {}
+        nodeData.data.imgMap = { ...(nodeData.data.imgMap || {}), ...imgMap }
+      }
+      return nodeData
+    },
+
+    // 构建包含全局配置但 root 为该节点子树的 mindMapData
+    buildMindmapDataForNode(node) {
+      const fullData = this.mindMap.getData(true) || {}
+      const nodeData = this.getNodeSubtreeData(node)
+      return { ...fullData, root: nodeData }
+    },
+
     // 计算右键菜单元素的显示位置
     getShowPosition(x, y) {
       const rect = this.$refs.contextmenuRef.getBoundingClientRect()
@@ -448,13 +486,7 @@ export default {
           break
         case 'COPY_NODE_TO_MARKDOWN':
           {
-            const getNodeData = (node) => {
-              return {
-                data: { ...node.getData() },
-                children: (node.children || []).map(child => getNodeData(child))
-              }
-            }
-            const data = getNodeData(currentNode)
+            const data = this.getNodeSubtreeData(currentNode)
             const md = transformToMarkdownList(data)
             if (this.enableCopyToClipboardApi) {
               setDataToClipboard(md)
@@ -466,27 +498,8 @@ export default {
           break
           case 'SET_AS_ROOT_NODE':
             {
-              const getNodeData = node => {
-                return {
-                  data: { ...node.getData() },
-                  children: (node.children || []).map(child => getNodeData(child))
-                }
-              }
-              const data = getNodeData(currentNode)
-              // 收集该节点树中使用到的图片 key -> base64 映射（如果有）
-              let imgMap = {}
-              try {
-                if (this.mindMap && this.mindMap.renderer && this.mindMap.renderer.collectImagesFromNodes) {
-                  imgMap = this.mindMap.renderer.collectImagesFromNodes([data]) || {}
-                }
-              } catch (e) {
-                console.error('collectImagesFromNodes error', e)
-              }
-              // 如果有 imgMap，则把它放到根节点的 data.imgMap 上以保留图片数据
-              if (imgMap && Object.keys(imgMap).length > 0) {
-                data.data = data.data || {}
-                data.data.imgMap = { ...(data.data.imgMap || {}), ...imgMap }
-              }
+                const data = this.getNodeSubtreeData(currentNode)
+              // data 已由 getNodeSubtreeData 包含 images 映射（如果有）
               this.mindMap.updateData(data)
               // 居中显示新的根节点
               try {
@@ -529,8 +542,8 @@ export default {
               false,
               currentNode
             )
-            // 获取当前导图数据并嵌入到 PNG 中
-            const mindMapData = this.mindMap.getData(true)
+            // 获取仅包含当前节点子树的导图数据（保留全局配置）并嵌入到 PNG 中
+            const mindMapData = this.buildMindmapDataForNode(currentNode)
             const mindMapConfig = {}
             if (this.mindMap.opt.rainbowLinesConfig) {
               mindMapConfig.rainbowLinesConfig = this.mindMap.opt.rainbowLinesConfig
@@ -538,7 +551,6 @@ export default {
             png = writeMindMapDataToPNG(png, mindMapData, mindMapConfig)
             // 手动下载
             downloadFile(png, fileName + '.png')
-            this.$message.success(this.$t('contextmenu.copySuccess') || '导出成功')
           } catch (error) {
             console.error('Export node to PNG failed:', error)
             this.$message.error(this.$t('edit.exportError') || '导出失败')
@@ -553,8 +565,9 @@ export default {
           try {
             let png = await this.mindMap.export('png', false, '', false, currentNode)
             
-            // 获取当前导图数据并嵌入到 PNG 中
-            const mindMapData = this.mindMap.getData(true)
+            // 获取仅包含当前节点子树的导图数据（保留全局配置）并嵌入到 PNG 中
+            const mindMapData = this.buildMindmapDataForNode(currentNode)
+            console.log('mindMapData for PNG:', mindMapData)
             // 获取配置数据（rainbowLinesConfig 和其他设置）
             const mindMapConfig = {}
             if (this.mindMap.opt.rainbowLinesConfig) {
@@ -565,6 +578,55 @@ export default {
             
             const blob = await imgToDataUrl(png, true)
             setImgToClipboard(blob)
+            this.$message.success(this.$t('contextmenu.copySuccess'))
+          } catch (error) {
+            console.log(error)
+            this.$message.error(this.$t('contextmenu.copyFail'))
+          }
+          return
+        case 'COPY_CUR_NODE_TO_SIYUAN':
+          this.hide()
+          if (!currentNode) {
+            this.$message.error('未找到节点')
+            return
+          }
+          try {
+            const format = 'png'
+            const imageName = `mindmap-image-${(window.parent.Lute.NewNodeID ? window.parent.Lute.NewNodeID() : Date.now())}.${format}`
+            // 导出当前节点为 PNG
+            let png = await this.mindMap.export('png', false, '', false, currentNode)
+
+            // 获取节点子树数据并保留图片映射
+            const nodeData = this.getNodeSubtreeData(currentNode)
+
+            // 使用全局数据（layout/theme/view 等），但将 root 替换为当前节点子树
+            const fullData = this.mindMap.getData(true) || {}
+            const mindMapData = { ...fullData, root: nodeData }
+            console.log('mindMapData for SiYuan PNG:', mindMapData)
+            const mindMapConfig = {}
+            if (this.mindMap.opt.rainbowLinesConfig) {
+              mindMapConfig.rainbowLinesConfig = this.mindMap.opt.rainbowLinesConfig
+            }
+
+            // 将节点数据写入 PNG
+            png = writeMindMapDataToPNG(png, mindMapData, mindMapConfig)
+
+            // 转为 Blob 并上传到思源 assets
+            const blob = dataURLToBlob(png)
+            const file = new File([blob], imageName, { type: blob.type })
+            const formData = new FormData()
+            formData.append('path', `data/assets/${imageName}`)
+            formData.append('file', file)
+            formData.append('isDir', 'false')
+            await fetchSyncPost('/api/file/putFile', formData)
+            const imageURL = `assets/${imageName}`
+            // 将图片链接复制到剪贴板，方便粘贴
+            const md = `![](${imageURL})`
+            if (this.enableCopyToClipboardApi) {
+              setDataToClipboard(md)
+            } else {
+              copy(md)
+            }
             this.$message.success(this.$t('contextmenu.copySuccess'))
           } catch (error) {
             console.log(error)

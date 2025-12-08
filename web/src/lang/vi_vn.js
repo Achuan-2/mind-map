@@ -129,6 +129,7 @@ export default {
     removeAllNodeCustomStyles: 'Xóa tất cả kiểu tùy chỉnh của nút',
     exportNodeToPng: 'Xuất nút thành png',
     copyNodeToPng: 'Sao chép nút thành hình ảnh',
+      copyNodeToSiyuan: 'Sao chép nút thành hình ảnh SiYuan (có thể nhập lại)',
     copyToClipboard: 'Sao chép vào clipboard',
     copyToSmm: 'SMM',
     copyToJson: 'JSON',

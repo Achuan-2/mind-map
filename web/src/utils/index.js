@@ -180,3 +180,18 @@ export const transformToMarkdownList = (root) => {
   walk(root, 0)
   return str
 }
+
+// Convert dataURL to Blob
+export const dataURLToBlob = (dataURL) => {
+  if (!dataURL) return null
+  const urlParts = dataURL.split(',')
+  const mimeMatch = (urlParts[0] || '').match(/:(.*?);/)
+  const mime = mimeMatch ? mimeMatch[1] : ''
+  const base64 = urlParts[1] || ''
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return new Blob([bytes], { type: mime })
+}

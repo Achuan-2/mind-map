@@ -125,6 +125,7 @@ export default {
     removeAllNodeCustomStyles: '一鍵移除所有節點自訂樣式',
     exportNodeToPng: '匯出此節點為圖片',
     copyNodeToPng: '複製該節點為圖片',
+    copyNodeToSiyuan: '複製該節點為思源圖片（可再匯入編輯）',
     copyToClipboard: '複製到剪貼簿',
     copyToSmm: 'SMM',
     copyToJson: 'JSON',
