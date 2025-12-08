@@ -113,11 +113,11 @@
       <div class="item" @click="exec('EXPORT_CUR_NODE_TO_PNG')">
         <span class="name">{{ $t('contextmenu.exportNodeToPng') }}</span>
       </div>
-      <div class="item" @click="exec('COPY_CUR_NODE_TO_PNG')" v-if="enableCopyToClipboardApi">
-        <span class="name">{{ $t('contextmenu.copyNodeToPng') }}</span>
-      </div>
       <div class="item" @click="exec('COPY_CUR_NODE_TO_SIYUAN')">
         <span class="name">{{ $t('contextmenu.copyNodeToSiyuan') || '复制为思源图片' }}</span>
+      </div>
+      <div class="item" @click="exec('COPY_CUR_NODE_TO_PNG')" v-if="enableCopyToClipboardApi">
+        <span class="name">{{ $t('contextmenu.copyNodeToPng') }}</span>
       </div>
       <div class="splitLine" v-if="enableAi"></div>
       <div class="item" @click="aiCreate" v-if="enableAi">
@@ -576,7 +576,7 @@ export default {
             // 嵌入导图数据到 PNG
             png = writeMindMapDataToPNG(png, mindMapData, mindMapConfig)
             
-            const blob = await imgToDataUrl(png, true)
+            const blob = dataURLToBlob(png)
             setImgToClipboard(blob)
             this.$message.success(this.$t('contextmenu.copySuccess'))
           } catch (error) {
@@ -676,7 +676,7 @@ export default {
               mindMapConfig.rainbowLinesConfig = this.mindMap.opt.rainbowLinesConfig
             }
             png = writeMindMapDataToPNG(png, mindMapData, mindMapConfig)
-            const blob = await imgToDataUrl(png, true)
+            const blob = dataURLToBlob(png)
             setImgToClipboard(blob)
             break
           default:
