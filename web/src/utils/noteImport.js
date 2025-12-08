@@ -23,6 +23,28 @@ export async function fetchSyncPost(url, data, returnType = 'json') {
   }
 }
 
+// 获取块类型
+export async function getBlockType(blockId) {
+  const res = await fetchSyncPost('/api/query/sql', {
+    stmt: `SELECT type FROM blocks WHERE id = '${blockId}'`
+  })
+  if (res.code === 0 && res.data && res.data.length > 0) {
+    return res.data[0].type
+  }
+  return null
+}
+
+// 获取块 markdown
+export async function getBlockMarkdown(blockId) {
+  const res = await fetchSyncPost('/api/query/sql', {
+    stmt: `SELECT markdown FROM blocks WHERE id = '${blockId}'`
+  })
+  if (res.code === 0 && res.data && res.data.length > 0) {
+    return res.data[0].markdown
+  }
+  return ''
+}
+
 // 清理文本：转换思源特有的 HTML 标签，保留富文本样式
 export function cleanText(text) {
   if (!text) return ''
@@ -180,162 +202,136 @@ export async function importOutline(blockId, blockInfo, maxLevel = 0) {
 }
 
 // 导入内容
-export async function importContent(blockIds, blockInfos, maxLevel = 0, currentImageUrl = '') {
-  if (!Array.isArray(blockIds)) {
-    blockIds = [blockIds];
-    blockInfos = [blockInfos];
-  }
+export async function importContent(blockId, blockInfo, maxLevel = 0, currentImageUrl = '') {
+  const blockIds = blockId.split(',').map(id => id.trim())
+  let mdContents = []
 
-  // 获取所有块的类型
-  const blockTypes = await Promise.all(blockIds.map(async id => {
-    const res = await fetchSyncPost('/api/query/sql', {
-      stmt: `SELECT type FROM blocks WHERE id = '${id}'`
-    });
-    return res.data && res.data.length > 0 ? res.data[0].type : null;
-  }));
-
-  const processedBlocks = await Promise.all(blockIds.map(async (id, index) => {
-    const type = blockTypes[index];
-    const info = blockInfos[index];
-    let mdContent = '';
+  for (const id of blockIds) {
+    const type = await getBlockType(id)
+    let content = ''
 
     if (type === 'h') {
-      // 检查是否有子块被选中
-      const childRes = await fetchSyncPost('/api/block/getChildBlocks', { id });
-      const childIds = childRes.data ? childRes.data.map(c => c.id) : [];
-      const hasSelectedChild = childIds.some(cid => blockIds.includes(cid));
+      // 检查是否有子块在输入中
+      const childRes = await fetchSyncPost('/api/block/getChildBlocks', { id })
+      const childIds = childRes.data ? childRes.data.map(c => c.id) : []
+      const hasChildInInput = childIds.some(cid => blockIds.includes(cid))
 
-      if (hasSelectedChild) {
-        // 使用 SQL 获取标题本身的 Markdown
-        const sqlRes = await fetchSyncPost('/api/query/sql', {
-          stmt: `SELECT content FROM blocks WHERE id = '${id}'`
-        });
-        mdContent = sqlRes.data && sqlRes.data.length > 0 ? sqlRes.data[0].content || '' : '';
+      if (hasChildInInput) {
+        // 只获取标题本身
+        content = await getBlockMarkdown(id)
       } else {
-        // 使用 exportMdContent
+        // 正常导出
         const res = await fetchSyncPost('/api/export/exportMdContent', {
-          id: id,
+          id,
           yfm: false,
           fillCSSVar: true,
           adjustHeadingLevel: true,
           imgTag: false
-        });
-        if (!res?.data?.content) {
-          throw new Error('Export markdown content failed');
+        })
+        if (res?.data?.content) {
+          content = res.data.content
         }
-        mdContent = res.data.content;
       }
     } else {
-      // 非标题块，使用 exportMdContent
+      // 非标题，正常导出
       const res = await fetchSyncPost('/api/export/exportMdContent', {
-        id: id,
+        id,
         yfm: false,
         fillCSSVar: true,
         adjustHeadingLevel: true,
         imgTag: false
-      });
-      if (!res?.data?.content) {
-        throw new Error('Export markdown content failed');
+      })
+      if (res?.data?.content) {
+        content = res.data.content
       }
-      mdContent = res.data.content;
     }
 
     // 清理 Markdown 内容中的 HTML 实体
-    mdContent = mdContent
+    content = content
       .replace(/&nbsp;/g, ' ')
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&amp;/g, '&')
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
-      .replace(/&apos;/g, "'");
+      .replace(/&apos;/g, "'")
 
-    // 过滤掉当前思维导图图片的引用（避免循环引用）
-    if (currentImageUrl) {
-      console.log('[NoteImport] Current image URL:', currentImageUrl);
-      console.log('[NoteImport] Content before filter (first 500 chars):', mdContent.substring(0, 500));
+    mdContents.push(content)
+  }
 
-      // 提取图片文件名（支持 assets/xxx.png 和 /assets/xxx.png 格式）
-      const imageFileName = currentImageUrl.split('/').pop();
+  let mdContent = mdContents.join('\n')
 
-      // 匹配多种可能的图片引用格式
-      const patterns = [
-        new RegExp(`!\\[.*?\\]\\([^)]*${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
-        new RegExp(`!\\[.*?\\]\\(/?assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
-        new RegExp(`!\\[.*?\\]\\(\\./assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g')
-      ];
+  // 过滤掉当前思维导图图片的引用（避免循环引用）
+  if (currentImageUrl) {
+    console.log('[NoteImport] Current image URL:', currentImageUrl)
+    console.log('[NoteImport] Content before filter (first 500 chars):', mdContent.substring(0, 500))
+    
+    // 提取图片文件名（支持 assets/xxx.png 和 /assets/xxx.png 格式）
+    const imageFileName = currentImageUrl.split('/').pop()
+    
+    // 匹配多种可能的图片引用格式
+    const patterns = [
+      new RegExp(`!\\[.*?\\]\\([^)]*${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+      new RegExp(`!\\[.*?\\]\\(/?assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+      new RegExp(`!\\[.*?\\]\\(\\./assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g')
+    ]
+    
+    patterns.forEach(pattern => {
+      mdContent = mdContent.replace(pattern, '')
+    })
+    
+    
+    // 清理连续的空行（过滤图片后可能产生）
+    mdContent = mdContent.replace(/\n{3,}/g, '\n\n')
+  }
 
-      patterns.forEach(pattern => {
-        mdContent = mdContent.replace(pattern, '');
-      });
+  const title = cleanText(blockInfo.content || blockInfo.name || '内容')
 
-      // 清理连续的空行（过滤图片后可能产生）
-      mdContent = mdContent.replace(/\n{3,}/g, '\n\n');
-    }
+  // 使用 markdown 解析器转换
+  const parsed = await markdown.transformMarkdownToWithImages(mdContent)
 
-    const title = cleanText(info.content || info.name || '内容');
-
-    // 使用 markdown 解析器转换
-    const parsed = await markdown.transformMarkdownToWithImages(mdContent);
-
-    const plainTitle = title.replace(/<[^>]+>/g, '');
-    const url = `siyuan://blocks/${id}`;
-
-    let root;
-    if (parsed.children && parsed.children.length > 0) {
-      if (parsed.children.length === 1) {
-        root = parsed.children[0];
-      } else {
-        root = {
-          data: {
-            richText: true,
-            text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
-          },
-          children: parsed.children
-        };
-      }
+  const plainTitle = title.replace(/<[^>]+>/g, '')
+  const url = `siyuan://blocks/${blockIds[0]}`
+  
+  let root
+  if (parsed.children && parsed.children.length > 0) {
+    if (parsed.children.length === 1) {
+      root = parsed.children[0]
     } else {
       root = {
         data: {
           richText: true,
           text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
         },
-        children: []
-      };
+        children: parsed.children
+      }
     }
-
-    // 清理所有节点文本
-    cleanNodeText(root);
-
-    // 应用层级限制
-    if (maxLevel > 0) {
-      trimByLevel(root, 1, maxLevel);
+  } else {
+    root = {
+      data: {
+        richText: true,
+        text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
+      },
+      children: []
     }
-
-    // 为根节点添加行内链接（如果还没有）
-    if (!root.data.richText || !root.data.text.includes('href=')) {
-      root.data.richText = true;
-      const currentText = root.data.text?.replace(/<[^>]+>/g, '').trim() || plainTitle;
-      root.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${currentText}</a></p>`;
-    }
-
-    return root;
-  }));
-
-  // 如果只有一个块，返回它
-  if (processedBlocks.length === 1) {
-    return processedBlocks[0];
   }
 
-  // 如果多个块，创建一个根节点
-  const root = {
-    data: {
-      text: '导入内容'
-    },
-    children: processedBlocks
-  };
+  // 清理所有节点文本
+  cleanNodeText(root)
 
-  return root;
+  // 应用层级限制
+  if (maxLevel > 0) {
+    trimByLevel(root, 1, maxLevel)
+  }
+
+  // 为根节点添加行内链接（如果还没有）
+  if (!root.data.richText || !root.data.text.includes('href=')) {
+    root.data.richText = true
+    const currentText = root.data.text?.replace(/<[^>]+>/g, '').trim() || plainTitle
+    root.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${currentText}</a></p>`
+  }
+
+  return root
 }
 
 // 应用自动编号
