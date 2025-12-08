@@ -180,100 +180,162 @@ export async function importOutline(blockId, blockInfo, maxLevel = 0) {
 }
 
 // 导入内容
-export async function importContent(blockId, blockInfo, maxLevel = 0, currentImageUrl = '') {
-  const res = await fetchSyncPost('/api/export/exportMdContent', {
-    id: blockId,
-    yfm: false,
-    fillCSSVar: true,
-    adjustHeadingLevel: true,
-    imgTag: false
-  })
-
-  if (!res?.data?.content) {
-    throw new Error('Export markdown content failed')
+export async function importContent(blockIds, blockInfos, maxLevel = 0, currentImageUrl = '') {
+  if (!Array.isArray(blockIds)) {
+    blockIds = [blockIds];
+    blockInfos = [blockInfos];
   }
 
-  // 清理 Markdown 内容中的 HTML 实体
-  let mdContent = res.data.content
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'")
+  // 获取所有块的类型
+  const blockTypes = await Promise.all(blockIds.map(async id => {
+    const res = await fetchSyncPost('/api/query/sql', {
+      stmt: `SELECT type FROM blocks WHERE id = '${id}'`
+    });
+    return res.data && res.data.length > 0 ? res.data[0].type : null;
+  }));
 
-  // 过滤掉当前思维导图图片的引用（避免循环引用）
-  if (currentImageUrl) {
-    console.log('[NoteImport] Current image URL:', currentImageUrl)
-    console.log('[NoteImport] Content before filter (first 500 chars):', mdContent.substring(0, 500))
-    
-    // 提取图片文件名（支持 assets/xxx.png 和 /assets/xxx.png 格式）
-    const imageFileName = currentImageUrl.split('/').pop()
-    
-    // 匹配多种可能的图片引用格式
-    const patterns = [
-      new RegExp(`!\\[.*?\\]\\([^)]*${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
-      new RegExp(`!\\[.*?\\]\\(/?assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
-      new RegExp(`!\\[.*?\\]\\(\\./assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g')
-    ]
-    
-    patterns.forEach(pattern => {
-      mdContent = mdContent.replace(pattern, '')
-    })
-    
-    
-    // 清理连续的空行（过滤图片后可能产生）
-    mdContent = mdContent.replace(/\n{3,}/g, '\n\n')
-  }
+  const processedBlocks = await Promise.all(blockIds.map(async (id, index) => {
+    const type = blockTypes[index];
+    const info = blockInfos[index];
+    let mdContent = '';
 
-  const title = cleanText(blockInfo.content || blockInfo.name || '内容')
+    if (type === 'h') {
+      // 检查是否有子块被选中
+      const childRes = await fetchSyncPost('/api/block/getChildBlocks', { id });
+      const childIds = childRes.data ? childRes.data.map(c => c.id) : [];
+      const hasSelectedChild = childIds.some(cid => blockIds.includes(cid));
 
-  // 使用 markdown 解析器转换
-  const parsed = await markdown.transformMarkdownToWithImages(mdContent)
+      if (hasSelectedChild) {
+        // 使用 SQL 获取标题本身的 Markdown
+        const sqlRes = await fetchSyncPost('/api/query/sql', {
+          stmt: `SELECT content FROM blocks WHERE id = '${id}'`
+        });
+        mdContent = sqlRes.data && sqlRes.data.length > 0 ? sqlRes.data[0].content || '' : '';
+      } else {
+        // 使用 exportMdContent
+        const res = await fetchSyncPost('/api/export/exportMdContent', {
+          id: id,
+          yfm: false,
+          fillCSSVar: true,
+          adjustHeadingLevel: true,
+          imgTag: false
+        });
+        if (!res?.data?.content) {
+          throw new Error('Export markdown content failed');
+        }
+        mdContent = res.data.content;
+      }
+    } else {
+      // 非标题块，使用 exportMdContent
+      const res = await fetchSyncPost('/api/export/exportMdContent', {
+        id: id,
+        yfm: false,
+        fillCSSVar: true,
+        adjustHeadingLevel: true,
+        imgTag: false
+      });
+      if (!res?.data?.content) {
+        throw new Error('Export markdown content failed');
+      }
+      mdContent = res.data.content;
+    }
 
-  const plainTitle = title.replace(/<[^>]+>/g, '')
-  const url = `siyuan://blocks/${blockId}`
-  
-  let root
-  if (parsed.children && parsed.children.length > 0) {
-    if (parsed.children.length === 1) {
-      root = parsed.children[0]
+    // 清理 Markdown 内容中的 HTML 实体
+    mdContent = mdContent
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'");
+
+    // 过滤掉当前思维导图图片的引用（避免循环引用）
+    if (currentImageUrl) {
+      console.log('[NoteImport] Current image URL:', currentImageUrl);
+      console.log('[NoteImport] Content before filter (first 500 chars):', mdContent.substring(0, 500));
+
+      // 提取图片文件名（支持 assets/xxx.png 和 /assets/xxx.png 格式）
+      const imageFileName = currentImageUrl.split('/').pop();
+
+      // 匹配多种可能的图片引用格式
+      const patterns = [
+        new RegExp(`!\\[.*?\\]\\([^)]*${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+        new RegExp(`!\\[.*?\\]\\(/?assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'),
+        new RegExp(`!\\[.*?\\]\\(\\./assets/${imageFileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g')
+      ];
+
+      patterns.forEach(pattern => {
+        mdContent = mdContent.replace(pattern, '');
+      });
+
+      // 清理连续的空行（过滤图片后可能产生）
+      mdContent = mdContent.replace(/\n{3,}/g, '\n\n');
+    }
+
+    const title = cleanText(info.content || info.name || '内容');
+
+    // 使用 markdown 解析器转换
+    const parsed = await markdown.transformMarkdownToWithImages(mdContent);
+
+    const plainTitle = title.replace(/<[^>]+>/g, '');
+    const url = `siyuan://blocks/${id}`;
+
+    let root;
+    if (parsed.children && parsed.children.length > 0) {
+      if (parsed.children.length === 1) {
+        root = parsed.children[0];
+      } else {
+        root = {
+          data: {
+            richText: true,
+            text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
+          },
+          children: parsed.children
+        };
+      }
     } else {
       root = {
         data: {
           richText: true,
           text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
         },
-        children: parsed.children
-      }
+        children: []
+      };
     }
-  } else {
-    root = {
-      data: {
-        richText: true,
-        text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
-      },
-      children: []
+
+    // 清理所有节点文本
+    cleanNodeText(root);
+
+    // 应用层级限制
+    if (maxLevel > 0) {
+      trimByLevel(root, 1, maxLevel);
     }
+
+    // 为根节点添加行内链接（如果还没有）
+    if (!root.data.richText || !root.data.text.includes('href=')) {
+      root.data.richText = true;
+      const currentText = root.data.text?.replace(/<[^>]+>/g, '').trim() || plainTitle;
+      root.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${currentText}</a></p>`;
+    }
+
+    return root;
+  }));
+
+  // 如果只有一个块，返回它
+  if (processedBlocks.length === 1) {
+    return processedBlocks[0];
   }
 
-  // 清理所有节点文本
-  cleanNodeText(root)
+  // 如果多个块，创建一个根节点
+  const root = {
+    data: {
+      text: '导入内容'
+    },
+    children: processedBlocks
+  };
 
-  // 应用层级限制
-  if (maxLevel > 0) {
-    trimByLevel(root, 1, maxLevel)
-  }
-
-  // 为根节点添加行内链接（如果还没有）
-  if (!root.data.richText || !root.data.text.includes('href=')) {
-    root.data.richText = true
-    const currentText = root.data.text?.replace(/<[^>]+>/g, '').trim() || plainTitle
-    root.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${currentText}</a></p>`
-  }
-
-  return root
+  return root;
 }
 
 // 应用自动编号
