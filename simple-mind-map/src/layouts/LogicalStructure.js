@@ -161,6 +161,8 @@ class LogicalStructure extends Base {
   renderLine(node, lines, style, lineStyle) {
     if (lineStyle === 'curve') {
       this.renderLineCurve(node, lines, style)
+    } else if (lineStyle === 'curve2') {
+      this.renderLineCurve2(node, lines, style)
     } else if (lineStyle === 'direct') {
       this.renderLineDirect(node, lines, style)
     } else {
@@ -279,7 +281,7 @@ class LogicalStructure extends Base {
       let path = ''
       y1 = nodeUseLineStyle && !node.isRoot ? y1 + height / 2 : y1
       y2 = nodeUseLineStyle ? y2 + item.height / 2 : y2
-      // 节点使用横线风格，需要额外渲染横线
+      // 节点使用横线风格,需要额外渲染横线
       let nodeUseLineStylePath
       if (this.isUseLeft) {
         nodeUseLineStylePath = nodeUseLineStyle ? ` L ${item.left},${y2}` : ''
@@ -293,6 +295,54 @@ class LogicalStructure extends Base {
       } else {
         path = this.cubicBezierPath(x1, y1, x2, y2) + nodeUseLineStylePath
       }
+      this.setLineStyle(style, lines[index], path, item)
+    })
+  }
+
+  //  圆弧风格连线
+  renderLineCurve2(node, lines, style) {
+    if (node.children.length <= 0) {
+      return []
+    }
+    let { left, top, width, height, expandBtnSize } = node
+    const { alwaysShowExpandBtn, notShowExpandBtn } = this.mindMap.opt
+    if (!alwaysShowExpandBtn || notShowExpandBtn) {
+      expandBtnSize = 0
+    }
+    const { nodeUseLineStyle } = this.mindMap.themeConfig
+    node.children.forEach((item, index) => {
+      if (node.layerIndex === 0) {
+        expandBtnSize = 0
+      }
+      // 起点从节点边缘开始，而不是节点中心
+      let x1 = this.isUseLeft ? left - expandBtnSize : left + width + expandBtnSize
+      let y1 = top + height / 2
+      let x2 = this.isUseLeft ? item.left + item.width : item.left
+      let y2 = item.top + item.height / 2
+      let path = ''
+      y1 = nodeUseLineStyle && !node.isRoot ? y1 + height / 2 : y1
+      y2 = nodeUseLineStyle ? y2 + item.height / 2 : y2
+      // 节点使用横线风格,需要额外渲染横线
+      let nodeUseLineStylePath
+      if (this.isUseLeft) {
+        nodeUseLineStylePath = nodeUseLineStyle ? ` L ${item.left},${y2}` : ''
+      } else {
+        nodeUseLineStylePath = nodeUseLineStyle
+          ? ` L ${item.left + item.width},${y2}`
+          : ''
+      }
+      
+      // 始终先绘制一段直线再连接圆弧
+      // 直线长度为节点与子节点距离的 20%
+      const straightLineLength = Math.abs(x2 - x1) * 0.20
+      let x1_end
+      if (this.isUseLeft) {
+        x1_end = x1 - straightLineLength
+      } else {
+        x1_end = x1 + straightLineLength
+      }
+      // 先画直线，再从直线终点画圆弧到目标点
+      path = `M ${x1},${y1} L ${x1_end},${y1} ` + this.arcPath(x1_end, y1, x2, y2) + nodeUseLineStylePath
       this.setLineStyle(style, lines[index], path, item)
     })
   }

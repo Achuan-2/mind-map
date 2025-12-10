@@ -22,7 +22,7 @@ export default {
   // 流动方向是否是从父节点到子节点
   lineFlowForward: true,
   // 连线风格
-  lineStyle: 'straight', // 曲线（curve）【仅支持logicalStructure、mindMap、verticalTimeline三种结构】、直线（straight）、直连（direct）【仅支持logicalStructure、mindMap、organizationStructure、verticalTimeline四种结构】
+  lineStyle: 'straight', // 曲线（curve）【贝塞尔曲线,仅支持logicalStructure、mindMap、verticalTimeline三种结构】、圆弧（curve2）【圆弧风格,仅支持logicalStructure、mindMap、organizationStructure、verticalTimeline四种结构】、直线（straight）、直连（direct）【仅支持logicalStructure、mindMap、organizationStructure、verticalTimeline四种结构】
   // 曲线连接时，根节点和其他节点的连接线样式保持统一，默认根节点为 ( 型，其他节点为 { 型，设为true后，都为 { 型。仅支持logicalStructure、mindMap两种结构
   rootLineKeepSameInCurve: true,
   // 曲线连接时，根节点和其他节点的连线起始位置保持统一，默认根节点的连线起始位置在节点中心，其他节点在节点右侧（或左侧），如果该配置设为true，那么根节点的连线起始位置也会在节点右侧（或左侧）

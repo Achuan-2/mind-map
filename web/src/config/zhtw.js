@@ -101,6 +101,10 @@ export const lineStyleList = [
     value: 'curve'
   },
   {
+    name: '圓弧',
+    value: 'curve2'
+  },
+  {
     name: '直接連線',
     value: 'direct'
   }

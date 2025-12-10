@@ -148,7 +148,8 @@ export const lineHeightList = [1, 1.2, 1.5, 2, 2.5, 3]
 
 export const lineStyleMap = {
   straight: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L30,14L30,5L42,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L30,14L30,23L42,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`,
-  curve: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L30,14A12,-9 0 0 1 42,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L30,14A12,9 0 0 0 42,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`,
+  curve: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L25,14 Q38,5 45,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L25,14 Q38,23 45,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`,
+  curve2: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L30,14A12,-9 0 0 1 42,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L30,14A12,9 0 0 0 42,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`,
   direct: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L30,14L42,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L30,14L42,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`
 }
 
@@ -161,6 +162,10 @@ export const lineStyleList = [
   {
     name: '曲线',
     value: 'curve'
+  },
+  {
+    name: '圆弧',
+    value: 'curve2'
   },
   {
     name: '直连',

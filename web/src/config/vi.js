@@ -101,6 +101,10 @@ export const lineStyleList = [
     value: 'curve'
   },
   {
+    name: 'Cung tròn',
+    value: 'curve2'
+  },
+  {
     name: 'Trực tiếp',
     value: 'direct'
   }

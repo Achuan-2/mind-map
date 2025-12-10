@@ -101,6 +101,10 @@ export const lineStyleList = [
     value: 'curve'
   },
   {
+    name: 'Arc',
+    value: 'curve2'
+  },
+  {
     name: 'Direct',
     value: 'direct'
   }

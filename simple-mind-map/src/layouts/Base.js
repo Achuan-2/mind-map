@@ -452,6 +452,52 @@ class Base {
     return `M ${x1},${y1} C ${cx1},${cy1} ${cx2},${cy2} ${x2},${y2}`
   }
 
+  //  圆弧路径（二次贝塞尔曲线）
+  arcPath(x1, y1, x2, y2) {
+    // 如果y轴坐标相同，直接画直线
+    if (y1 === y2) {
+      return `M ${x1},${y1} L ${x2},${y2}`
+    }
+    
+    // 计算两点之间的距离
+    const dx = x2 - x1
+    const dy = y2 - y1
+    
+    // 控制点偏移量，使用垂直距离的固定比例以保持一致的弧度
+    // 使用 dy 的绝对值的 10% 作为偏移量
+    const offset = Math.abs(dy) * 0.6
+    
+    // 计算控制点位置
+    let cx, cy
+    
+    // 根据节点位置决定曲线弯曲方向
+    if (dx > 0) {
+      // 子节点在右侧
+      if (dy > 0) {
+        // 子节点在右下方，控制点向下偏移
+        cx = x1
+        cy = y1 + offset
+      } else {
+        // 子节点在右上方，控制点向上偏移
+        cx = x1
+        cy = y1 - offset
+      }
+    } else {
+      // 子节点在左侧
+      if (dy > 0) {
+        // 子节点在左下方，控制点向下偏移
+        cx = x1
+        cy = y1 + offset
+      } else {
+        // 子节点在左上方，控制点向上偏移
+        cx = x1
+        cy = y1 - offset
+      }
+    }
+    
+    return `M ${x1},${y1} Q ${cx},${cy} ${x2},${y2}`
+  }
+
   // 根据a,b两个点的位置，计算去除圆角大小后的新的b点
   computeNewPoint(a, b, radius = 0) {
     // x坐标相同
