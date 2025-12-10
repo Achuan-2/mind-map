@@ -229,11 +229,31 @@ class RichText {
     this.mindMap.renderer.textEdit.registerTmpShortcut()
     // 原始宽高
     let g = node._textData.node
-    let originWidth = g.attr('data-width')
-    let originHeight = g.attr('data-height')
-    // 缩放值
-    const scaleX = Math.ceil(rect.width) / originWidth
-    const scaleY = Math.ceil(rect.height) / originHeight
+    // 确保 data-width/data-height 是数字
+    let originWidth = parseFloat(g.attr('data-width'))
+    let originHeight = parseFloat(g.attr('data-height'))
+    if (!isFinite(originWidth)) originWidth = 0
+    if (!isFinite(originHeight)) originHeight = 0
+    // 缩放值，使用向上取整的目标尺寸进行计算
+    const rectW = Math.max(0, Math.ceil(rect.width))
+    const rectH = Math.max(0, Math.ceil(rect.height))
+    const rawScaleX = originWidth > 0 ? rectW / originWidth : NaN
+    const rawScaleY = originHeight > 0 ? rectH / originHeight : NaN
+    let scaleX, scaleY
+    if (!isFinite(rawScaleX) && !isFinite(rawScaleY)) {
+      // 两个都无效时回退为 1（不缩放）
+      scaleX = scaleY = 1
+    } else if (!isFinite(rawScaleX)) {
+      // X 无效时使用 Y
+      scaleX = scaleY = rawScaleY
+    } else if (!isFinite(rawScaleY)) {
+      // Y 无效时使用 X
+      scaleX = scaleY = rawScaleX
+    } else {
+      // 两者有效时使用统一缩放，避免单轴为 1 导致文字变形
+      const uniform = Math.min(rawScaleX, rawScaleY)
+      scaleX = scaleY = uniform
+    }
     // 内边距
     let paddingX = this.textNodePaddingX
     let paddingY = this.textNodePaddingY
