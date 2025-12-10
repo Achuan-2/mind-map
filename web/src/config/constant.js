@@ -62,7 +62,12 @@ export const supportLineStyleLayoutsMap = {
     'mindMap',
     'organizationStructure',
     'verticalTimeline'
-  ]
+    ],
+  brace: [
+    'logicalStructure',
+    'logicalStructureLeft',
+    'mindMap'
+    ]
 }
 
 // 直线模式支持设置圆角的结构

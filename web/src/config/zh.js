@@ -150,7 +150,8 @@ export const lineStyleMap = {
   straight: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L30,14L30,5L42,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L30,14L30,23L42,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`,
   curve: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L25,14 Q38,5 45,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L25,14 Q38,23 45,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`,
   curve2: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L30,14A12,-9 0 0 1 42,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L30,14A12,9 0 0 0 42,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`,
-  direct: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L30,14L42,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L30,14L42,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`
+  direct: `<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M18,14L30,14L42,5" fill="none" stroke="#000" stroke-width="2"></path><path d="M18,14L30,14L42,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`,
+  brace: `<svg  xmlns="http://www.w3.org/2000/svg" version="1.1" width="60" height="26"><path d="M30,5 Q26,5 26,9 L26,11 Q26,14 22,14 Q26,14 26,17 L26,19 Q26,23 30,23" fill="none" stroke="#000" stroke-width="2"></path></svg>`
 }
 
 // 连线风格
@@ -170,6 +171,10 @@ export const lineStyleList = [
   {
     name: '直连',
     value: 'direct'
+  },
+  {
+    name: '括号',
+    value: 'brace'
   }
 ]
 

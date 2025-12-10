@@ -64,14 +64,14 @@ class LogicalStructure extends Base {
         let len = cur.data.expand === false ? 0 : cur._node.children.length
         cur._node.childrenAreaHeight = len
           ? cur._node.children.reduce((h, item) => {
-              return h + item.height
-            }, 0) +
-            (len + 1) * this.getMarginY(layerIndex + 1)
+            return h + item.height
+          }, 0) +
+          (len + 1) * this.getMarginY(layerIndex + 1)
           : 0
         // 如果存在概要，则和概要的高度取最大值
         let generalizationNodeHeight = cur._node.checkHasGeneralization()
           ? cur._node._generalizationNodeHeight +
-            this.getMarginY(layerIndex + 1)
+          this.getMarginY(layerIndex + 1)
           : 0
         cur._node.childrenAreaHeight2 = Math.max(
           cur._node.childrenAreaHeight,
@@ -163,6 +163,8 @@ class LogicalStructure extends Base {
       this.renderLineCurve(node, lines, style)
     } else if (lineStyle === 'curve2') {
       this.renderLineCurve2(node, lines, style)
+    } else if (lineStyle === 'brace') {
+      this.renderLineBrace(node, lines, style)
     } else if (lineStyle === 'direct') {
       this.renderLineDirect(node, lines, style)
     } else {
@@ -331,7 +333,7 @@ class LogicalStructure extends Base {
           ? ` L ${item.left + item.width},${y2}`
           : ''
       }
-      
+
       // 始终先绘制一段直线再连接圆弧
       // 直线长度为节点与子节点距离的 20%
       const straightLineLength = Math.abs(x2 - x1) * 0.20
@@ -344,6 +346,114 @@ class LogicalStructure extends Base {
       // 先画直线，再从直线终点画圆弧到目标点
       path = `M ${x1},${y1} L ${x1_end},${y1} ` + this.arcPath(x1_end, y1, x2, y2) + nodeUseLineStylePath
       this.setLineStyle(style, lines[index], path, item)
+    })
+  }
+
+  //  括号风格连线
+  renderLineBrace(node, lines, style) {
+    if (node.children.length <= 0) {
+      return []
+    }
+
+    // 只有一个子节点时，直接连接
+    if (node.children.length === 1) {
+      let { left, top, width, height, expandBtnSize } = node
+      const { alwaysShowExpandBtn, notShowExpandBtn } = this.mindMap.opt
+      if (!alwaysShowExpandBtn || notShowExpandBtn) {
+        expandBtnSize = 0
+      }
+      if (node.layerIndex === 0) {
+        expandBtnSize = 0
+      }
+      const item = node.children[0]
+      let x1 = this.isUseLeft ? left - expandBtnSize : left + width + expandBtnSize
+      let y1 = top + height / 2
+      let x2 = this.isUseLeft ? item.left + item.width : item.left
+      let y2 = item.top + item.height / 2
+
+      // brace 样式不使用 nodeUseLineStyle
+      let path = `M ${x1},${y1} L ${x2},${y2}`
+      this.setLineStyle(style, lines[0], path, item)
+      return
+    }
+
+    // 多个子节点时，绘制括号
+    let { left, top, width, height, expandBtnSize } = node
+    const { alwaysShowExpandBtn, notShowExpandBtn } = this.mindMap.opt
+    if (!alwaysShowExpandBtn || notShowExpandBtn) {
+      expandBtnSize = 0
+    }
+    if (node.layerIndex === 0) {
+      expandBtnSize = 0
+    }
+
+    const firstChild = node.children[0]
+    const lastChild = node.children[node.children.length - 1]
+
+    // 父节点的起点
+    let x1 = this.isUseLeft ? left - expandBtnSize : left + width + expandBtnSize
+    let y1 = top + height / 2
+
+    // 第一个子节点的位置
+    let firstY = firstChild.top + firstChild.height / 2
+
+    // 最后一个子节点的位置
+    let lastY = lastChild.top + lastChild.height / 2
+
+    // 括号的中点Y坐标
+    let midY = y1
+    if (midY < firstY) midY = firstY
+    if (midY > lastY) midY = lastY
+
+    // 计算括号的X位置（在父节点和子节点之间）
+    const firstChildX = this.isUseLeft ? firstChild.left + firstChild.width : firstChild.left
+    const braceX = x1 + (firstChildX - x1) * 0.5
+
+    // 括号的弯曲程度
+    const curveOffset = Math.abs(firstChildX - x1) * 0.15
+    const direction = this.isUseLeft ? -1 : 1
+
+    // 父节点与第一个子节点连线
+    const mainPath = ``
+    this.setLineStyle(style, lines[0], mainPath, firstChild)
+
+    // 绘制括号路径（使用最后一个子节点的 line）
+    const topCurveX = braceX - curveOffset * direction
+    const midX = braceX - curveOffset * direction * 1.5
+    const bottomCurveX = braceX - curveOffset * direction
+
+    const topDy = midY - firstY
+    const bottomDy = lastY - midY
+    const topOffset = topDy * 0.3
+    const bottomOffset = bottomDy * 0.3
+
+    let bracePath = `M ${braceX},${firstY} Q ${topCurveX},${firstY} ${topCurveX},${firstY + topOffset}`
+    bracePath += ` L ${topCurveX},${midY - topOffset}`
+    bracePath += ` Q ${topCurveX},${midY} ${midX},${midY}`
+    bracePath += ` Q ${bottomCurveX},${midY} ${bottomCurveX},${midY + bottomOffset}`
+    bracePath += ` L ${bottomCurveX},${lastY - bottomOffset}`
+    bracePath += ` Q ${bottomCurveX},${lastY} ${braceX},${lastY}`
+
+    const lastChildIndex = node.children.length - 1
+    if (lines[lastChildIndex]) {
+      this.setLineStyle(style, lines[lastChildIndex], bracePath, lastChild)
+    }
+
+    // 每个子节点的连线不绘制
+    node.children.forEach((item, index) => {
+      // 跳过第一个节点（已用于主连线）和最后一个节点（已用于括号）
+      if (index === 0 || index === lastChildIndex) {
+        return
+      }
+
+      let y2 = item.top + item.height / 2
+      let x2 = this.isUseLeft ? item.left + item.width : item.left
+
+      // brace 样式不使用 nodeUseLineStyle，直接连接
+      const childPath = ``
+      if (lines[index]) {
+        this.setLineStyle(style, lines[index], childPath, item)
+      }
     })
   }
 
