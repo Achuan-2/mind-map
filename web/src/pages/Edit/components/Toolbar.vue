@@ -673,6 +673,36 @@ export default {
         const autoNumber = this.blockSettings.autoNumber || false
         const maxLevel = this.blockSettings.maxLevel || 0
 
+        // 检查是否为多个块ID（支持逗号或空格分隔）
+        const inputIds = blockId.trim().split(/[,\s]+/).filter(id => id.length > 0)
+        
+        // 如果是多个块ID，只支持内容导入
+        if (inputIds.length > 1) {
+          const blockIds = inputIds.join(',')
+          const blockInfo = {
+            ids: inputIds,
+            content: `合并内容`,
+            count: inputIds.length
+          }
+          
+          const mindmapData = await importContent(blockIds, blockInfo, maxLevel, this.currentImageUrl)
+          
+          if (mindmapData) {
+            if (autoNumber) {
+              applyAutoNumber(mindmapData)
+            }
+            try {
+              mindmapData.smmVersion = '0.13.0'
+            } catch (e) {}
+            this.$bus.$emit('updateData', mindmapData, { keepView: true })
+            storeData({ root: mindmapData })
+            if (!silent) {
+              this.$message.success(this.$t('noteToMindmap.refreshSuccess'))
+            }
+          }
+          return
+        }
+
         // 处理文档树类型的刷新（可能是笔记本或文档）
         // 如果 blockSettings 中有 isNotebook 标记且为 true，直接使用保存的信息刷新
         if (importType === 'docTree' && this.blockSettings.isNotebook && this.blockSettings.notebookId) {

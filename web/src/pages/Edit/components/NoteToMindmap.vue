@@ -34,7 +34,7 @@
         </el-form-item>
 
         <!-- 块类型显示 -->
-        <el-form-item :label="$t('noteToMindmap.blockType')" v-if="blockInfo">
+        <el-form-item :label="$t('noteToMindmap.blockType')" v-if="blockInfo && !blockInfo.ids">
           <el-tag :type="blockInfo.type === 'd' ? 'success' : (blockInfo.type === 'notebook' ? 'warning' : 'info')">
             {{ blockInfo.type === 'd' ? $t('noteToMindmap.document') : (blockInfo.type === 'notebook' ? $t('noteToMindmap.notebook') : $t('noteToMindmap.block')) }}
           </el-tag>
@@ -42,7 +42,7 @@
         </el-form-item>
 
         <!-- 导入类型选择（文档/笔记本均可显示不同选项） -->
-        <el-form-item :label="$t('noteToMindmap.importType')" v-if="blockInfo">
+        <el-form-item :label="$t('noteToMindmap.importType')" v-if="blockInfo && !blockInfo.ids">
           <el-radio-group v-model="importType">
             <el-radio v-if="blockInfo.type === 'd'" label="outline">{{ $t('noteToMindmap.importOutline') }}</el-radio>
             <el-radio v-if="blockInfo.type === 'd'" label="content">{{ $t('noteToMindmap.importContent') }}</el-radio>
@@ -186,7 +186,6 @@ export default {
             } else if (message.event === 'current_image_url_response') {
               if (message.imageUrl) {
                 this.currentImageUrl = message.imageUrl
-                console.log('[NoteToMindmap] Got image URL:', this.currentImageUrl)
               }
             }
           } catch (e) {}
@@ -265,11 +264,62 @@ export default {
       this.blockInfo = null
 
       try {
-        // 先判断是否为笔记本ID
+        // 解析多个块ID（支持逗号或空格分隔）
+        const inputIds = this.blockId.trim().split(/[,\s]+/).filter(id => id.length > 0)
+        
+        // 获取笔记本列表，用于过滤笔记本ID
+        let notebookIds = []
         try {
           const nbRes = await fetchSyncPost('/api/notebook/lsNotebooks')
           if (nbRes && nbRes.code === 0 && nbRes.data && Array.isArray(nbRes.data.notebooks)) {
-            const nb = nbRes.data.notebooks.find(n => n.id === this.blockId.trim())
+            notebookIds = nbRes.data.notebooks.map(n => n.id)
+          }
+        } catch (e) {
+          console.warn('lsNotebooks failed', e)
+        }
+
+        // 过滤掉笔记本ID
+        const validBlockIds = inputIds.filter(id => !notebookIds.includes(id))
+        
+        // 如果过滤后没有有效ID
+        if (validBlockIds.length === 0) {
+          if (inputIds.length > 0 && inputIds.length === notebookIds.filter(nid => inputIds.includes(nid)).length) {
+            this.$message.warning('输入的ID均为笔记本ID，已自动过滤。请输入块ID。')
+          } else {
+            this.$message.warning(this.$t('noteToMindmap.pleaseInputBlockId'))
+          }
+          this.querying = false
+          return
+        }
+
+        // 更新 blockId 为过滤后的ID（如果有过滤）
+        if (validBlockIds.length !== inputIds.length) {
+          this.blockId = validBlockIds.join(',')
+          this.$message.info(`已自动移除笔记本ID，当前块ID: ${this.blockId}`)
+        }
+
+        // 如果是多个块ID，直接接受，不验证是否存在
+        if (validBlockIds.length > 1) {
+          // 多个块ID只能选择内容导入
+          this.blockInfo = {
+            ids: validBlockIds,
+            content: `合并内容`,
+            count: validBlockIds.length
+          }
+          this.importType = 'content'
+          this.$message.success(`已识别 ${validBlockIds.length} 个块ID`)
+          this.querying = false
+          return
+        }
+
+        // 单个块ID的处理逻辑
+        const singleId = validBlockIds[0]
+        
+        // 先判断是否为笔记本ID（虽然已过滤，但保留逻辑以防万一）
+        if (notebookIds.includes(singleId)) {
+          const nbRes = await fetchSyncPost('/api/notebook/lsNotebooks')
+          if (nbRes && nbRes.code === 0 && nbRes.data && Array.isArray(nbRes.data.notebooks)) {
+            const nb = nbRes.data.notebooks.find(n => n.id === singleId)
             if (nb) {
               // 识别为笔记本
               this.blockInfo = {
@@ -283,7 +333,7 @@ export default {
               // 获取笔记本配置以确定最终排序模式
               try {
                 const confRes = await fetchSyncPost('/api/notebook/getNotebookConf', {
-                  notebook: this.blockId.trim()
+                  notebook: singleId
                 })
                 if (confRes && confRes.code === 0 && confRes.data && confRes.data.conf) {
                   const notebookSortMode = confRes.data.conf.sortMode
@@ -300,17 +350,15 @@ export default {
               }
 
               this.$message.success(this.$t('noteToMindmap.querySuccess'))
+              this.querying = false
               return
             }
           }
-        } catch (e) {
-          // 忽略笔记本列表错误，继续尝试读取块
-          console.warn('lsNotebooks failed', e)
         }
 
         // 不是笔记本，则查询 blocks 表
         const res = await fetchSyncPost('/api/query/sql', {
-          stmt: `SELECT * FROM blocks WHERE id = '${this.blockId.trim()}'`
+          stmt: `SELECT * FROM blocks WHERE id = '${singleId}'`
         })
 
         if (res.code === 0 && res.data && res.data.length > 0) {
@@ -350,7 +398,11 @@ export default {
       try {
         let mindmapData = null
 
-        if (this.blockInfo.type === 'notebook' && this.importType === 'docTree') {
+        if (this.blockInfo.ids && this.blockInfo.ids.length > 1) {
+          // 多个块ID，只支持内容导入
+          const blockIds = this.blockInfo.ids.join(',')
+          mindmapData = await importContent(blockIds, this.blockInfo, this.maxLevel, this.currentImageUrl)
+        } else if (this.blockInfo.type === 'notebook' && this.importType === 'docTree') {
           // 从笔记本的文档树导入（笔记本无需输入路径，始终从根目录开始）
           const startPath = '/'
           mindmapData = await importDocTree(this.blockId, startPath, this.maxLevel, this.finalSortMode, this.blockInfo.name)
