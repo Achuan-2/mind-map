@@ -407,7 +407,7 @@ class LogicalStructure extends Base {
 
     // 计算括号的X位置（在父节点和子节点之间）
     const firstChildX = this.isUseLeft ? firstChild.left + firstChild.width : firstChild.left
-    const braceX = x1 + (firstChildX - x1) * 0.5
+    const braceX = x1 + (firstChildX - x1) * 0.6
 
     // 括号的弯曲程度
     const curveOffset = Math.abs(firstChildX - x1) * 0.15
