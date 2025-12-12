@@ -75,6 +75,12 @@
           <el-switch v-model="autoRefresh"></el-switch>
           <span class="option-desc">{{ $t('noteToMindmap.autoRefreshDesc') }}</span>
         </el-form-item>
+
+        <!-- 是否为块添加超链接 -->
+        <el-form-item label="是否为块添加超链接">
+          <el-switch v-model="addLink"></el-switch>
+          <span class="option-desc">在导入时为节点标题添加指向原块的超链接</span>
+        </el-form-item>
       </el-form>
 
       <span slot="footer" class="dialog-footer">
@@ -112,6 +118,7 @@ export default {
       autoNumber: false,
       maxLevel: 0, // 0 表示不限制
       autoRefresh: false,
+      addLink: true, // 是否为块添加超链接，默认勾选
       querying: false,
       importing: false,
       currentImageUrl: '' // 当前思维导图的图片URL
@@ -150,6 +157,7 @@ export default {
             if (typeof settings.autoNumber === 'boolean') this.autoNumber = settings.autoNumber
             if (typeof settings.maxLevel === 'number') this.maxLevel = settings.maxLevel
             if (typeof settings.autoRefresh === 'boolean') this.autoRefresh = settings.autoRefresh
+            if (typeof settings.addLink === 'boolean') this.addLink = settings.addLink
             // 自动查询块信息
             if (this.blockId) {
               this.queryBlockInfo()
@@ -178,6 +186,7 @@ export default {
                 if (typeof settings.autoNumber === 'boolean') this.autoNumber = settings.autoNumber
                 if (typeof settings.maxLevel === 'number') this.maxLevel = settings.maxLevel
                 if (typeof settings.autoRefresh === 'boolean') this.autoRefresh = settings.autoRefresh
+                if (typeof settings.addLink === 'boolean') this.addLink = settings.addLink
                 // 自动查询块信息
                 if (this.blockId) {
                   this.queryBlockInfo()
@@ -208,7 +217,8 @@ export default {
         importType: this.importType,
         autoNumber: this.autoNumber,
         maxLevel: this.maxLevel,
-        autoRefresh: this.autoRefresh
+        autoRefresh: this.autoRefresh,
+        addLink: this.addLink
       }
 
       // 优先使用 takeOverApp 模式保存
@@ -278,24 +288,64 @@ export default {
           console.warn('lsNotebooks failed', e)
         }
 
-        // 过滤掉笔记本ID
-        const validBlockIds = inputIds.filter(id => !notebookIds.includes(id))
-        
-        // 如果过滤后没有有效ID
-        if (validBlockIds.length === 0) {
-          if (inputIds.length > 0 && inputIds.length === notebookIds.filter(nid => inputIds.includes(nid)).length) {
-            this.$message.warning('输入的ID均为笔记本ID，已自动过滤。请输入块ID。')
-          } else {
-            this.$message.warning(this.$t('noteToMindmap.pleaseInputBlockId'))
+        // 仅当输入多个 ID 时，过滤掉笔记本ID；如果只输入一个 ID 且是笔记本，则直接作为笔记本处理
+        const validBlockIds = inputIds.length > 1 ? inputIds.filter(id => !notebookIds.includes(id)) : inputIds.slice()
+
+        // 单个输入且为笔记本ID时，直接识别为笔记本并返回（无需继续后续 blocks 查询）
+        if (inputIds.length === 1 && notebookIds.includes(inputIds[0])) {
+          const singleNbId = inputIds[0]
+          // 尝试从之前获取的笔记本列表中找到笔记本信息
+          const nb = (typeof nbRes !== 'undefined' && nbRes?.data?.notebooks) ? nbRes.data.notebooks.find(n => n.id === singleNbId) : null
+          if (nb) {
+            this.blockInfo = {
+              type: 'notebook',
+              id: nb.id,
+              name: nb.name,
+              sortMode: nb.sortMode
+            }
+            this.importType = 'docTree'
+
+            // 获取笔记本配置以确定最终排序模式
+            try {
+              const confRes = await fetchSyncPost('/api/notebook/getNotebookConf', {
+                notebook: singleNbId
+              })
+              if (confRes && confRes.code === 0 && confRes.data && confRes.data.conf) {
+                const notebookSortMode = confRes.data.conf.sortMode
+                if (notebookSortMode === 15) {
+                  this.finalSortMode = window?.siyuan?.config?.fileTree?.sort || nb.sortMode || 15
+                } else {
+                  this.finalSortMode = notebookSortMode
+                }
+              }
+            } catch (e) {
+              console.warn('Get notebook conf failed', e)
+            }
+
+            this.$message.success(this.$t('noteToMindmap.querySuccess'))
+            this.querying = false
+            return
           }
-          this.querying = false
-          return
         }
 
-        // 更新 blockId 为过滤后的ID（如果有过滤）
-        if (validBlockIds.length !== inputIds.length) {
-          this.blockId = validBlockIds.join(',')
-          this.$message.info(`已自动移除笔记本ID，当前块ID: ${this.blockId}`)
+        // 如果是多个 ID，则执行过滤并提示
+        if (inputIds.length > 1) {
+          // 如果过滤后没有有效ID
+          if (validBlockIds.length === 0) {
+            if (inputIds.length > 0 && inputIds.length === notebookIds.filter(nid => inputIds.includes(nid)).length) {
+              this.$message.warning('输入的ID均为笔记本ID，已自动过滤。请输入块ID。')
+            } else {
+              this.$message.warning(this.$t('noteToMindmap.pleaseInputBlockId'))
+            }
+            this.querying = false
+            return
+          }
+
+          // 更新 blockId 为过滤后的ID（如果有过滤）
+          if (validBlockIds.length !== inputIds.length) {
+            this.blockId = validBlockIds.join(',')
+            this.$message.info(`已自动移除笔记本ID，当前块ID: ${this.blockId}`)
+          }
         }
 
         // 如果是多个块ID，直接接受，不验证是否存在
@@ -401,11 +451,11 @@ export default {
         if (this.blockInfo.ids && this.blockInfo.ids.length > 1) {
           // 多个块ID，只支持内容导入
           const blockIds = this.blockInfo.ids.join(',')
-          mindmapData = await importContent(blockIds, this.blockInfo, this.maxLevel, this.currentImageUrl)
+          mindmapData = await importContent(blockIds, this.blockInfo, this.maxLevel, this.currentImageUrl, this.addLink)
         } else if (this.blockInfo.type === 'notebook' && this.importType === 'docTree') {
           // 从笔记本的文档树导入（笔记本无需输入路径，始终从根目录开始）
           const startPath = '/'
-          mindmapData = await importDocTree(this.blockId, startPath, this.maxLevel, this.finalSortMode, this.blockInfo.name)
+          mindmapData = await importDocTree(this.blockId, startPath, this.maxLevel, this.finalSortMode, this.blockInfo.name, null, this.addLink)
         } else if (this.blockInfo.type === 'd' && this.importType === 'docTree') {
           // 文档ID也可选择子文档树：需要 notebook 与 path
           const docId = this.blockId.trim()
@@ -442,14 +492,14 @@ export default {
             return
           }
 
-          // 使用 importDocTree 生成子节点树，然后给根节点附加文档名与超链接
-          mindmapData = await importDocTree(notebookId, docPath, this.maxLevel, this.finalSortMode, this.blockInfo.content || this.blockInfo.name, docId)
+          // 使用 importDocTree 生成子节点树，然后给根节点附加文档名与超链接（或不附加，取决于 addLink）
+          mindmapData = await importDocTree(notebookId, docPath, this.maxLevel, this.finalSortMode, this.blockInfo.content || this.blockInfo.name, docId, this.addLink)
         } else if (this.blockInfo.type === 'd' && this.importType === 'outline') {
           // 导入文档大纲
-          mindmapData = await importOutline(this.blockId, this.blockInfo, this.maxLevel)
+          mindmapData = await importOutline(this.blockId, this.blockInfo, this.maxLevel, this.addLink)
         } else {
           // 导入内容（文档内容或块内容）
-          mindmapData = await importContent(this.blockId, this.blockInfo, this.maxLevel, this.currentImageUrl)
+          mindmapData = await importContent(this.blockId, this.blockInfo, this.maxLevel, this.currentImageUrl, this.addLink)
         }
 
         if (mindmapData) {

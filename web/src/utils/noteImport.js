@@ -136,7 +136,7 @@ export function trimByLevel(node, currentLevel = 1, maxLevel = 0) {
 }
 
 // 转换大纲数据为思维导图格式
-export function convertOutlineToMindmap(outline, currentLevel = 1, maxLevel = 0) {
+export function convertOutlineToMindmap(outline, currentLevel = 1, maxLevel = 0, addLink = true) {
   if (!outline || !Array.isArray(outline)) return []
   
   // 如果设置了最大层级且当前层级超过限制，返回空数组
@@ -154,23 +154,28 @@ export function convertOutlineToMindmap(outline, currentLevel = 1, maxLevel = 0)
       children: []
     }
 
-    // 使用行内链接格式
-    if (hasRichTextTags(text)) {
-      // 如果原文本有富文本标签，将链接和富文本结合
+    // 使用行内链接格式（可选：不添加超链接）
+    const isRich = hasRichTextTags(text)
+    if (isRich) {
       node.data.richText = true
-      node.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${text}</a></p>`
+      node.data.text = addLink ? `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${text}</a></p>` : `<p>${text}</p>`
     } else {
-      // 纯文本，包裹为行内链接
-      node.data.richText = true
-      node.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainText}</a></p>`
+      // 纯文本
+      if (addLink) {
+        node.data.richText = true
+        node.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainText}</a></p>`
+      } else {
+        node.data.richText = false
+        node.data.text = plainText
+      }
     }
 
     // 处理子节点 (blocks 或 children)
     if (item.blocks && item.blocks.length > 0) {
-      node.children = convertOutlineToMindmap(item.blocks, currentLevel + 1, maxLevel)
+      node.children = convertOutlineToMindmap(item.blocks, currentLevel + 1, maxLevel, addLink)
     }
     if (item.children && item.children.length > 0) {
-      node.children = node.children.concat(convertOutlineToMindmap(item.children, currentLevel + 1, maxLevel))
+      node.children = node.children.concat(convertOutlineToMindmap(item.children, currentLevel + 1, maxLevel, addLink))
     }
 
     return node
@@ -178,7 +183,7 @@ export function convertOutlineToMindmap(outline, currentLevel = 1, maxLevel = 0)
 }
 
 // 导入文档大纲
-export async function importOutline(blockId, blockInfo, maxLevel = 0) {
+export async function importOutline(blockId, blockInfo, maxLevel = 0, addLink = true) {
   const res = await fetchSyncPost('/api/outline/getDocOutline', {
     id: blockId
   })
@@ -192,17 +197,22 @@ export async function importOutline(blockId, blockInfo, maxLevel = 0) {
   const plainTitle = docTitle.replace(/<[^>]+>/g, '')
   const url = `siyuan://blocks/${blockId}`
 
+  const rootData = addLink ? {
+    richText: true,
+    text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
+  } : {
+    richText: false,
+    text: plainTitle
+  }
+
   return {
-    data: {
-      richText: true,
-      text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
-    },
-    children: convertOutlineToMindmap(outline, 1, maxLevel)
+    data: rootData,
+    children: convertOutlineToMindmap(outline, 1, maxLevel, addLink)
   }
 }
 
 // 导入内容
-export async function importContent(blockId, blockInfo, maxLevel = 0, currentImageUrl = '') {
+export async function importContent(blockId, blockInfo, maxLevel = 0, currentImageUrl = '', addLink = true) {
   const blockIds = blockId.split(',').map(id => id.trim())
   let mdContents = []
 
@@ -298,22 +308,28 @@ export async function importContent(blockId, blockInfo, maxLevel = 0, currentIma
     if (parsed.children.length === 1) {
       root = parsed.children[0]
     } else {
-      root = {
-        data: {
-          richText: true,
-          text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
-        },
-        children: parsed.children
-      }
+        root = {
+          data: addLink ? {
+            richText: true,
+            text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
+          } : {
+            richText: false,
+            text: plainTitle
+          },
+          children: parsed.children
+        }
     }
   } else {
-    root = {
-      data: {
-        richText: true,
-        text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
-      },
-      children: []
-    }
+      root = {
+        data: addLink ? {
+          richText: true,
+          text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainTitle}</a></p>`
+        } : {
+          richText: false,
+          text: plainTitle
+        },
+        children: []
+      }
   }
 
   // 清理所有节点文本
@@ -324,11 +340,13 @@ export async function importContent(blockId, blockInfo, maxLevel = 0, currentIma
     trimByLevel(root, 1, maxLevel)
   }
 
-  // 为根节点添加行内链接（如果还没有）
-  if (!root.data.richText || !root.data.text.includes('href=')) {
-    root.data.richText = true
-    const currentText = root.data.text?.replace(/<[^>]+>/g, '').trim() || plainTitle
-    root.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${currentText}</a></p>`
+  // 为根节点添加行内链接（如果还没有且允许添加链接）
+  if (addLink) {
+    if (!root.data.richText || !root.data.text.includes('href=')) {
+      root.data.richText = true
+      const currentText = root.data.text?.replace(/<[^>]+>/g, '').trim() || plainTitle
+      root.data.text = `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${currentText}</a></p>`
+    }
   }
 
   return root
@@ -424,7 +442,7 @@ export async function getDocTree(notebookId, path = '/', sortMode = 6) {
 }
 
 // 将文档树转换为思维导图格式并返回根节点
-export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, sortMode = 15, notebookName = '', rootDocId = null) {
+export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, sortMode = 15, notebookName = '', rootDocId = null, addLink = true) {
   // 当未显式传入 sortMode（null/undefined）或传入为 15（表示遵循“文档树”全局设置）时，读取笔记本配置以确定最终排序模式
   let finalSort = sortMode
   try {
@@ -441,7 +459,7 @@ export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, s
 
   const tree = await getDocTree(notebookId, startPath, finalSort)
 
-  function convert(nodes, currentLevel = 1) {
+  function convert(nodes, currentLevel = 1, addLinkLocal = true) {
     if (!nodes || nodes.length === 0) return []
     if (maxLevel > 0 && currentLevel > maxLevel) return []
 
@@ -451,17 +469,20 @@ export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, s
       const url = n.id ? `siyuan://blocks/${n.id}` : ''
       
       const node = {
-        data: url ? {
+        data: url ? (addLinkLocal ? {
           richText: true,
           text: `<p><a href="${url}" rel="noopener noreferrer" target="_blank">${plainText}</a></p>`
         } : {
+          richText: false,
+          text: plainText
+        }) : {
           text: text
         },
         children: []
       }
 
       if (n.children && n.children.length > 0) {
-        node.children = convert(n.children, currentLevel + 1)
+        node.children = convert(n.children, currentLevel + 1, addLinkLocal)
       }
 
       return node
@@ -471,13 +492,16 @@ export async function importDocTree(notebookId, startPath = '/', maxLevel = 0, s
   // 根节点：如果是文档，添加行内链接；如果是笔记本，使用纯文本
   const rootText = notebookName || '文档树'
   const root = {
-    data: rootDocId ? {
+    data: rootDocId ? (addLink ? {
       richText: true,
       text: `<p><a href="siyuan://blocks/${rootDocId}" rel="noopener noreferrer" target="_blank">${rootText}</a></p>`
     } : {
+      richText: false,
+      text: rootText
+    }) : {
       text: rootText
     },
-    children: convert(tree, 1)
+    children: convert(tree, 1, addLink)
   }
 
   // 清理节点文本并按层级裁剪
