@@ -401,7 +401,7 @@ export const nextTick = function (fn, ctx) {
 // 检查节点是否超出画布
 export const checkNodeOuter = (mindMap, node, offsetX = 0, offsetY = 0) => {
   let elRect = mindMap.elRect
-  let { scaleX, scaleY, translateX, translateY } = mindMap.draw.transform()
+  let { scaleX, scaleY, translateX, translateY } = mindMap.view.getDrawTransform()
   let { left, top, width, height } = node
   let right = (left + width) * scaleX + translateX
   let bottom = (top + height) * scaleY + translateY

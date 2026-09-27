@@ -254,7 +254,7 @@ class OuterFrame {
     this.clearOuterFrameElList()
     let tree = this.mindMap.renderer.root
     if (!tree) return
-    const t = this.mindMap.draw.transform()
+    const t = this.mindMap.view.getDrawTransform()
     const { outerFramePaddingX, outerFramePaddingY } = this.mindMap.opt
     walk(
       tree,

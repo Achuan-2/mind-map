@@ -62,7 +62,7 @@ function onDragMousemoveHandle(e) {
   this.group.css({
     cursor: 'ew-resize'
   })
-  const { scaleX } = this.mindMap.draw.transform()
+  const { scaleX } = this.mindMap.view.getDrawTransform()
   const ox = e.clientX - this.dragHandleMousedownX
   let newWidth =
     this.dragHandleMousedownCustomTextWidth +

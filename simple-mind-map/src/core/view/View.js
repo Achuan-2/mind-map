@@ -12,6 +12,9 @@ class View {
     this.x = 0
     this.y = 0
     this.firstDrag = true
+    this.dragFrame = null
+    this.isDraggingView = false
+    this.dragPositionLimit = null
     this.setTransformData(this.mindMap.opt.viewData)
     this.bind()
   }
@@ -51,12 +54,36 @@ class View {
           this.mindMap.execCommand('CLEAR_ACTIVE_NODE')
         }
       }
+      if (!this.isDraggingView) {
+        this.isDraggingView = true
+        // 边界只依赖导图尺寸和缩放，在一次拖动中无需重复测量整个 SVG。
+        if (this.checkNeedMindMapInCanvas()) {
+          try {
+            this.dragPositionLimit = this.getPositionLimit()
+          } catch (error) {}
+        }
+      }
       this.x = this.sx + event.mousemoveOffset.x
       this.y = this.sy + event.mousemoveOffset.y
-      this.transform()
+      if (this.dragPositionLimit) {
+        this.limitMindMapInCanvas(this.dragPositionLimit)
+      }
+      // 视图变换始终留在 CSS，不改写 SVG 的节点或 transform 属性。
+      if (this.dragFrame === null) {
+        this.dragFrame = requestAnimationFrame(() => {
+          this.dragFrame = null
+          this.updateViewStyle()
+        })
+      }
     })
     this.mindMap.event.on('mouseup', () => {
       this.firstDrag = true
+      if (this.isDraggingView) {
+        this.transform(this.dragPositionLimit, true)
+      }
+    })
+    this.mindMap.on('beforeDestroy', () => {
+      this.clearDragPreview()
     })
     // 放大缩小视图
     this.mindMap.event.on('mousewheel', (e, dirs, event, isTouchPad) => {
@@ -154,7 +181,7 @@ class View {
   //  获取当前变换状态数据
   getTransformData() {
     return {
-      transform: this.mindMap.draw.transform(),
+      transform: this.getDrawTransform(),
       state: {
         scale: this.scale,
         x: this.x,
@@ -165,15 +192,30 @@ class View {
     }
   }
 
+  // 给需要计算画布坐标的调用方提供与旧版 SVG 变换相同的数值。
+  getDrawTransform() {
+    return {
+      a: this.scale,
+      b: 0,
+      c: 0,
+      d: this.scale,
+      e: this.x,
+      f: this.y,
+      scaleX: this.scale,
+      scaleY: this.scale,
+      translateX: this.x,
+      translateY: this.y
+    }
+  }
+
   //  动态设置变换状态数据
   setTransformData(viewData) {
     if (viewData) {
+      this.clearDragPreview()
       Object.keys(viewData.state).forEach(prop => {
         this[prop] = viewData.state[prop]
       })
-      this.mindMap.draw.transform({
-        ...viewData.transform
-      })
+      this.updateViewStyle()
       this.mindMap.emit('view_data_change', this.getTransformData())
       this.emitEvent('scale')
       this.emitEvent('translate')
@@ -220,16 +262,29 @@ class View {
   }
 
   //   应用变换
-  transform() {
+  transform(positionLimit, isDragEnd = false) {
+    this.clearDragPreview()
     try {
-      this.limitMindMapInCanvas()
+      // 拖动期间已按缓存边界限制过位置，松手时无需测量整张 SVG。
+      if (!isDragEnd || positionLimit) this.limitMindMapInCanvas(positionLimit)
     } catch (error) {}
-    this.mindMap.draw.transform({
-      origin: [0, 0],
-      scale: this.scale,
-      translate: [this.x, this.y]
-    })
+    this.updateViewStyle()
     this.mindMap.emit('view_data_change', this.getTransformData())
+  }
+
+  updateViewStyle() {
+    this.mindMap.viewEl.style.transform = `translate(${this.x}px, ${this.y}px) scale(${this.scale})`
+  }
+
+  clearDragPreview() {
+    if (this.dragFrame !== null) {
+      cancelAnimationFrame(this.dragFrame)
+      this.dragFrame = null
+    }
+    if (this.isDraggingView) {
+      this.isDraggingView = false
+      this.dragPositionLimit = null
+    }
   }
 
   //  恢复
@@ -304,7 +359,7 @@ class View {
     fitPadding =
       fitPadding === undefined ? this.mindMap.opt.fitPadding : fitPadding
     const draw = this.mindMap.draw
-    const origTransform = draw.transform()
+    const origTransform = this.getDrawTransform()
     const rect = getRbox() || draw.rbox()
     const drawWidth = rect.width / origTransform.scaleX
     const drawHeight = rect.height / origTransform.scaleY
@@ -370,10 +425,11 @@ class View {
   }
 
   // 将思维导图限制在画布内
-  limitMindMapInCanvas() {
+  limitMindMapInCanvas(positionLimit) {
     if (!this.checkNeedMindMapInCanvas()) return
 
-    let { scale, left, top, right, bottom } = this.getPositionLimit()
+    let { scale, left, top, right, bottom } =
+      positionLimit || this.getPositionLimit()
 
     // 画布宽高改变了，但是思维导图元素变换的中心点依旧是原有位置，所以需要加上中心点变化量
     const centerXChange =
@@ -414,7 +470,7 @@ class View {
 
   // 计算图形四个方向的位置边界值
   getPositionLimit() {
-    const { scaleX, scaleY } = this.mindMap.draw.transform()
+    const { scaleX, scaleY } = this.getDrawTransform()
     const drawRect = this.mindMap.draw.rbox()
     const rootRect = this.mindMap.renderer.root.group.rbox()
     const rootCenterOffset = this.mindMap.renderer.layout.getRootCenterOffset(

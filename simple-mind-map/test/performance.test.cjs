@@ -21,6 +21,8 @@ const bundle = webRequire('esbuild').buildSync({
       export { default as NodeLayout } from './src/core/render/node/nodeLayout.js'
       export { default as Render } from './src/core/render/Render.js'
       export { default as RenderQueue } from './src/utils/RenderQueue.js'
+      export { default as View } from './src/core/view/View.js'
+      export { default as MiniMap } from './src/plugins/MiniMap.js'
       export { default as MindMap } from './index.js'
       export { markMindMapRaw } from '../web/src/utils/mindMapRaw.js'
     `,
@@ -39,6 +41,8 @@ let clock = 0
 let scheduledCount = 0
 let timerID = 0
 const timers = new Map()
+let frameID = 0
+const frames = new Map()
 const context = {
   module: { exports: {} },
   require: webRequire,
@@ -46,11 +50,13 @@ const context = {
   document: { documentElement: {} },
   performance: { now: () => clock },
   setTimeout: fn => { scheduledCount++; timers.set(++timerID, fn); return timerID },
-  clearTimeout: id => timers.delete(id)
+  clearTimeout: id => timers.delete(id),
+  requestAnimationFrame: fn => { frames.set(++frameID, fn); return frameID },
+  cancelAnimationFrame: id => frames.delete(id)
 }
 context.exports = context.module.exports
 vm.runInNewContext(bundle, context)
-const { bfsWalk, getNodeDataSnapshot, Base, MindMapNode, NodeContents, NodeLayout, Render, RenderQueue, MindMap, markMindMapRaw } = context.module.exports
+const { bfsWalk, getNodeDataSnapshot, Base, MindMapNode, NodeContents, NodeLayout, Render, RenderQueue, View, MiniMap, MindMap, markMindMapRaw } = context.module.exports
 const drainTimers = () => {
   while (timers.size) {
     const [id, fn] = timers.entries().next().value
@@ -58,6 +64,126 @@ const drainTimers = () => {
     fn()
   }
 }
+
+test('view pan and zoom only update CSS, while preserving effective coordinates', () => {
+  const listeners = new Map()
+  const emitter = {
+    on(name, fn) {
+      const handlers = listeners.get(name) || []
+      handlers.push(fn)
+      listeners.set(name, handlers)
+    },
+    emit(name, ...args) {
+      for (const fn of listeners.get(name) || []) fn(...args)
+    }
+  }
+  const event = Object.create(emitter)
+  let svgTransformWrites = 0
+  const mindMap = Object.assign(Object.create(emitter), {
+    opt: { isDisableDrag: false, isLimitMindMapInCanvas: false },
+    event,
+    keyCommand: { addShortcut() {} },
+    renderer: { activeNodeList: [] },
+    viewEl: { style: {} },
+    draw: {
+      current: {},
+      transform(value) {
+        if (value) svgTransformWrites++
+        return this.current
+      }
+    }
+  })
+  const view = new View({ mindMap })
+  let transforms = 0
+  mindMap.on('view_data_change', () => transforms++)
+  event.emit('mousedown', {})
+  event.emit('drag', {}, { mousemoveOffset: { x: 10, y: 5 } })
+  event.emit('drag', {}, { mousemoveOffset: { x: 20, y: 15 } })
+  assert.equal(frames.size, 1)
+  assert.equal(transforms, 0)
+  assert.equal(mindMap.viewEl.style.transform, undefined)
+  const [id, frame] = frames.entries().next().value
+  frames.delete(id)
+  frame()
+  assert.equal(transforms, 0)
+  assert.equal(mindMap.viewEl.style.transform, 'translate(20px, 15px) scale(1)')
+  assert.equal(svgTransformWrites, 0)
+
+  event.emit('drag', {}, { mousemoveOffset: { x: 30, y: 25 } })
+  event.emit('mouseup')
+  assert.equal(frames.size, 0)
+  assert.equal(transforms, 1)
+  assert.equal(mindMap.viewEl.style.transform, 'translate(30px, 25px) scale(1)')
+  assert.equal(view.getDrawTransform().translateX, 30)
+  assert.equal(svgTransformWrites, 0)
+
+  view.setScale(2, 50, 50)
+  assert.equal(mindMap.viewEl.style.transform, 'translate(10px, 0px) scale(2)')
+  assert.equal(view.getDrawTransform().scaleX, 2)
+  assert.equal(svgTransformWrites, 0)
+
+  event.emit('mousedown', {})
+  event.emit('drag', {}, { mousemoveOffset: { x: 10, y: 10 } })
+  const [nextID, nextFrame] = frames.entries().next().value
+  frames.delete(nextID)
+  nextFrame()
+  assert.equal(mindMap.viewEl.style.transform, 'translate(20px, 10px) scale(2)')
+  mindMap.emit('beforeDestroy')
+  assert.equal(frames.size, 0)
+  assert.equal(transforms, 2)
+  assert.equal(svgTransformWrites, 0)
+  assert.equal(view.dragFrame, null)
+})
+
+test('ending a drag reuses its bounds and updating the mini map view does not export SVG', () => {
+  const listeners = new Map()
+  const emitter = {
+    on(name, fn) {
+      const handlers = listeners.get(name) || []
+      handlers.push(fn)
+      listeners.set(name, handlers)
+    },
+    emit(name, ...args) {
+      for (const fn of listeners.get(name) || []) fn(...args)
+    }
+  }
+  const event = Object.create(emitter)
+  const mindMap = Object.assign(Object.create(emitter), {
+    opt: { isDisableDrag: false, isLimitMindMapInCanvas: true },
+    event,
+    keyCommand: { addShortcut() {} },
+    renderer: { activeNodeList: [] },
+    viewEl: { style: {} }
+  })
+  const view = new View({ mindMap })
+  mindMap.view = view
+  let boundsReads = 0
+  view.getPositionLimit = () => {
+    boundsReads++
+    return { scale: 1, left: 100, right: -100, top: 100, bottom: -100 }
+  }
+  view.limitMindMapInCanvas = () => {}
+  event.emit('mousedown', {})
+  event.emit('drag', {}, { mousemoveOffset: { x: 20, y: 10 } })
+  event.emit('mouseup')
+  assert.equal(boundsReads, 1)
+
+  const miniMap = new MiniMap({ mindMap })
+  miniMap.currentState = {
+    contentRect: { x: 0, y: 0, width: 200, height: 100 },
+    canvasWidth: 100,
+    canvasHeight: 50,
+    miniMapBoxScale: 1,
+    miniMapBoxLeft: 0,
+    miniMapBoxTop: 0
+  }
+  mindMap.getSvgData = () => { throw new Error('view update must not export SVG') }
+  const style = miniMap.updateViewBoxStyle()
+  assert.equal(style.left, '0px')
+  assert.equal(style.right, '120px')
+  assert.equal(style.top, '0px')
+  assert.equal(style.bottom, '60px')
+})
 
 test('node icons and spacing follow layer/custom font sizes and rich-text fonts', () => {
   const node = Object.create(MindMapNode.prototype)
@@ -207,7 +333,7 @@ test('async rendering batches timers, refreshes transforms and completes once', 
   const mindMap = {
     opt: { openPerformance: true, performanceConfig: { padding: 100, removeNodeWhenOutCanvas: true } },
     width: 1000, height: 1000,
-    draw: { transform: () => { transformReads++; return { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0 } } }
+    view: { getDrawTransform: () => { transformReads++; return { scaleX: 1, scaleY: 1, translateX: 0, translateY: 0 } } }
   }
   const node = children => Object.assign(Object.create(MindMapNode.prototype), {
     renderer, mindMap, children, nodeData: {}, left: 0, top: 0, width: 10, height: 10,

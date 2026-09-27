@@ -54,6 +54,7 @@ export default {
         right: 0
       },
       mindMapImg: '',
+      miniMapDirty: false,
       width: 0,
       setSizeTimer: null,
       withTransition: true
@@ -68,9 +69,9 @@ export default {
     this.setSize()
     window.addEventListener('resize', this.setSize)
     this.$bus.$on('toggle_mini_map', this.toggle_mini_map)
-    this.$bus.$on('data_change', this.data_change)
-    this.$bus.$on('view_data_change', this.data_change)
-    this.$bus.$on('node_tree_render_end', this.data_change)
+    this.$bus.$on('data_change', this.onContentChange)
+    this.$bus.$on('view_data_change', this.updateViewBox)
+    this.$bus.$on('node_tree_render_end', this.onRenderEnd)
     window.addEventListener('mouseup', this.onMouseup)
     this.mindMap.on(
       'mini_map_view_box_position_change',
@@ -80,9 +81,9 @@ export default {
   destroyed() {
     window.removeEventListener('resize', this.setSize)
     this.$bus.$off('toggle_mini_map', this.toggle_mini_map)
-    this.$bus.$off('data_change', this.data_change)
-    this.$bus.$off('view_data_change', this.data_change)
-    this.$bus.$off('node_tree_render_end', this.data_change)
+    this.$bus.$off('data_change', this.onContentChange)
+    this.$bus.$off('view_data_change', this.updateViewBox)
+    this.$bus.$off('node_tree_render_end', this.onRenderEnd)
     window.removeEventListener('mouseup', this.onMouseup)
     this.mindMap.off(
       'mini_map_view_box_position_change',
@@ -103,15 +104,28 @@ export default {
       })
     },
 
-    // 思维导图数据改变，更新小地图
-    data_change() {
+    // 内容改变后重建小地图节点图；视图移动只更新视口框。
+    onContentChange() {
       if (!this.showMiniMap) {
         return
       }
+      this.miniMapDirty = true
       clearTimeout(this.timer)
       this.timer = setTimeout(() => {
-        this.drawMiniMap()
+        if (this.miniMapDirty) this.drawMiniMap()
       }, 500)
+    },
+
+    onRenderEnd() {
+      if (!this.showMiniMap || !this.miniMapDirty) return
+      clearTimeout(this.timer)
+      this.drawMiniMap()
+    },
+
+    updateViewBox() {
+      if (!this.showMiniMap) return
+      const style = this.mindMap.miniMap.updateViewBoxStyle()
+      if (style) this.viewBoxStyle = style
     },
 
     // 计算容器宽度
@@ -152,6 +166,7 @@ export default {
       this.svgBoxScale = miniMapBoxScale
       this.svgBoxLeft = miniMapBoxLeft
       this.svgBoxTop = miniMapBoxTop
+      this.miniMapDirty = false
     },
 
     // 小地图鼠标按下事件

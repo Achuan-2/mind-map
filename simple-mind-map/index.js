@@ -201,8 +201,22 @@ class MindMap {
       this.associativeLineDraw = this.draw.group()
       this.associativeLineDraw.addClass('smm-associative-line-container')
     }
-    // 画布
-    this.svg = SVG().addTo(this.el).size(this.width, this.height)
+    // HTML 视口负责裁剪和视图变换，SVG 只保存导图内容。
+    this.viewPort = document.createElement('div')
+    this.viewPort.style.width = `${this.width}px`
+    this.viewPort.style.height = `${this.height}px`
+    this.viewPort.style.overflow = 'hidden'
+    this.viewPort.style.position = 'relative'
+    this.viewEl = document.createElement('div')
+    this.viewEl.style.position = 'absolute'
+    this.viewEl.style.left = '0'
+    this.viewEl.style.top = '0'
+    this.viewEl.style.transformOrigin = '0 0'
+    this.viewPort.appendChild(this.viewEl)
+    this.el.appendChild(this.viewPort)
+    // SVG 自身不裁剪超出原视口的节点，由 HTML 视口统一裁剪。
+    this.svg = SVG().addTo(this.viewEl).size(this.width, this.height)
+    this.svg.node.style.overflow = 'visible'
 
     // 容器
     this.draw = this.svg.group()
@@ -328,6 +342,8 @@ class MindMap {
     const oldHeight = this.height
     this.getElRectInfo()
     this.svg.size(this.width, this.height)
+    this.viewPort.style.width = `${this.width}px`
+    this.viewPort.style.height = `${this.height}px`
     if (oldWidth !== this.width || oldHeight !== this.height) {
       // 如果画布宽高改变了需要触发一次渲染
       if (this.demonstrate) {
@@ -587,6 +603,10 @@ class MindMap {
     const origWidth = svg.width()
     const origHeight = svg.height()
     const origTransform = draw.transform()
+    const viewScale = this.view.scale
+    const origViewStyle = this.viewEl.style.transform || ''
+    // 导出的是节点内容，去掉只用于屏幕视图的 CSS 平移和缩放。
+    this.viewEl.style.transform = ''
     const elRect = this.elRect
     // 去除放大缩小的变换效果
     draw.scale(1 / origTransform.scaleX, 1 / origTransform.scaleY)
@@ -685,6 +705,7 @@ class MindMap {
       })
       // 恢复原先的变换信息
       draw.transform(origTransform)
+      this.viewEl.style.transform = origViewStyle
       return {
         svg: clone,
         svgHTML: clone.svg(),
@@ -698,8 +719,8 @@ class MindMap {
         },
         origWidth,
         origHeight,
-        scaleX: origTransform.scaleX,
-        scaleY: origTransform.scaleY
+        scaleX: viewScale,
+        scaleY: viewScale
       }
     }
     
@@ -777,6 +798,7 @@ class MindMap {
     // 恢复原先的大小和变换信息
     svg.size(origWidth, origHeight)
     draw.transform(origTransform)
+    this.viewEl.style.transform = origViewStyle
     return {
       svg: clone, // 思维导图图形的整体svg元素，包括：svg（画布容器）、g（实际的思维导图组）
       svgHTML: clone.svg(), // svg字符串
@@ -787,8 +809,8 @@ class MindMap {
       },
       origWidth, // 画布宽度
       origHeight, // 画布高度
-      scaleX: origTransform.scaleX, // 思维导图图形的水平缩放值
-      scaleY: origTransform.scaleY // 思维导图图形的垂直缩放值
+      scaleX: viewScale, // 思维导图图形的水平缩放值
+      scaleY: viewScale // 思维导图图形的垂直缩放值
     }
   }
 

@@ -27,7 +27,7 @@ class MiniMap {
    * boxHeight：小地图容器的高度
    */
   calculationMiniMap(boxWidth, boxHeight) {
-    let { svg, rect, origWidth, origHeight, scaleX, scaleY } =
+    let { svg, rect, origWidth, origHeight } =
       this.mindMap.getSvgData({
         ignoreWatermark: true
       })
@@ -53,54 +53,17 @@ class MiniMap {
     let miniMapBoxScale = actWidth / rect.width
     let miniMapBoxLeft = (boxWidth - actWidth) / 2
     let miniMapBoxTop = (boxHeight - actHeight) / 2
-    // 当前思维导图图形实际的宽高，即在缩放后的宽高
-    let _rectWidth = rect.width * scaleX
-    let _rectHeight = rect.height * scaleY
-    // 视口框大小及位置
-    let _rectWidthOffsetHalf = (_rectWidth - rect.width) / 2
-    let _rectHeightOffsetHalf = (_rectHeight - rect.height) / 2
-    let _rectX = rect.x - _rectWidthOffsetHalf
-    let _rectX2 = rect.x2 + _rectWidthOffsetHalf
-    let _rectY = rect.y - _rectHeightOffsetHalf
-    let _rectY2 = rect.y2 + _rectHeightOffsetHalf
-    let viewBoxStyle = {
-      left: 0,
-      top: 0,
-      right: 0,
-      bottom: 0
-    }
-    viewBoxStyle.left =
-      Math.max(0, (-_rectX / _rectWidth) * actWidth) + miniMapBoxLeft
-    viewBoxStyle.right =
-      Math.max(0, ((_rectX2 - origWidth) / _rectWidth) * actWidth) +
-      miniMapBoxLeft
-
-    viewBoxStyle.top =
-      Math.max(0, (-_rectY / _rectHeight) * actHeight) + miniMapBoxTop
-    viewBoxStyle.bottom =
-      Math.max(0, ((_rectY2 - origHeight) / _rectHeight) * actHeight) +
-      miniMapBoxTop
-
-    if (viewBoxStyle.top > miniMapBoxTop + actHeight) {
-      viewBoxStyle.top = miniMapBoxTop + actHeight
-    }
-    if (viewBoxStyle.left > miniMapBoxLeft + actWidth) {
-      viewBoxStyle.left = miniMapBoxLeft + actWidth
-    }
-
-    Object.keys(viewBoxStyle).forEach(key => {
-      viewBoxStyle[key] = viewBoxStyle[key] + 'px'
-    })
     this.removeNodeContent(svg)
     const svgStr = svg.svg()
     this.currentState = {
-      viewBoxStyle: {
-        ...viewBoxStyle
-      },
+      contentRect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+      canvasWidth: origWidth,
+      canvasHeight: origHeight,
       miniMapBoxScale,
       miniMapBoxLeft,
       miniMapBoxTop
     }
+    const viewBoxStyle = this.updateViewBoxStyle()
     return {
       getImgUrl: async callback => {
         const res = await this.mindMap.doExport.fixSvgStrAndToBlob(svgStr)
@@ -112,6 +75,27 @@ class MiniMap {
       miniMapBoxLeft, // 视图框的left值
       miniMapBoxTop // 视图框的top值
     }
+  }
+
+  // 视图移动时仅更新视口框，不重新克隆和序列化整张 SVG。
+  updateViewBoxStyle() {
+    if (!this.currentState) return null
+    const {
+      contentRect, canvasWidth, canvasHeight,
+      miniMapBoxScale, miniMapBoxLeft, miniMapBoxTop
+    } = this.currentState
+    const { x, y, scale } = this.mindMap.view
+    const clamp = (value, size) => Math.max(0, Math.min(value, size))
+    const width = contentRect.width * miniMapBoxScale
+    const height = contentRect.height * miniMapBoxScale
+    const viewBoxStyle = {
+      left: `${miniMapBoxLeft + clamp((-x / scale - contentRect.x) * miniMapBoxScale, width)}px`,
+      right: `${miniMapBoxLeft + clamp((contentRect.x + contentRect.width - (canvasWidth - x) / scale) * miniMapBoxScale, width)}px`,
+      top: `${miniMapBoxTop + clamp((-y / scale - contentRect.y) * miniMapBoxScale, height)}px`,
+      bottom: `${miniMapBoxTop + clamp((contentRect.y + contentRect.height - (canvasHeight - y) / scale) * miniMapBoxScale, height)}px`
+    }
+    this.currentState.viewBoxStyle = viewBoxStyle
+    return viewBoxStyle
   }
 
   // 移除节点的内容

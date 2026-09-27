@@ -191,7 +191,7 @@ class Select {
   //  检测在选区里的节点
   checkInNodes() {
     let { scaleX, scaleY, translateX, translateY } =
-      this.mindMap.draw.transform()
+      this.mindMap.view.getDrawTransform()
     let minx = Math.min(this.mouseDownX, this.mouseMoveX)
     let miny = Math.min(this.mouseDownY, this.mouseMoveY)
     let maxx = Math.max(this.mouseDownX, this.mouseMoveX)

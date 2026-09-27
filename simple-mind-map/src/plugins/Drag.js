@@ -240,7 +240,7 @@ class Drag extends Base {
     // 检测新位置
     this.checkOverlapNode()
     // 边缘自动移动画布
-    this.drawTransform = this.mindMap.draw.transform()
+    this.drawTransform = this.mindMap.view.getDrawTransform()
     this.autoMove.clearAutoMoveTimer()
     this.autoMove.onMove(e.clientX, e.clientY)
   }
@@ -251,7 +251,7 @@ class Drag extends Base {
       // 鼠标按下的节点
       let node = this.mousedownNode
       // 计算鼠标按下的位置距离节点左上角的距离
-      this.drawTransform = this.mindMap.draw.transform()
+      this.drawTransform = this.mindMap.view.getDrawTransform()
       let { scaleX, scaleY, translateX, translateY } = this.drawTransform
       this.offsetX = this.mouseDownX - (node.left * scaleX + translateX)
       this.offsetY = this.mouseDownY - (node.top * scaleY + translateY)

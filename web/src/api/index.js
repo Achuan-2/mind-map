@@ -51,6 +51,8 @@ export const storeData = data => {
     }
     if (window.takeOverApp) {
       mindMapData = originData
+      // 视图平移和缩放只更新当前会话状态，不触发图片导出。
+      if (Object.keys(data).every(key => key === 'view')) return
       window.takeOverAppMethods.saveMindMapData(originData)
       // save_success 事件会在父窗口确认保存成功后通过消息触发
       return

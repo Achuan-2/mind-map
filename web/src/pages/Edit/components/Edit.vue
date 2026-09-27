@@ -325,7 +325,10 @@ export default {
     // 存储数据当数据有变时
     bindSaveEvent() {
       this.$bus.$on('data_change', this.onDataChange)
-      this.$bus.$on('view_data_change', this.onViewDataChange)
+      // 嵌入思源时视图只存在于编辑会话中，拖动和缩放无需序列化整张导图。
+      if (!window.takeOverApp) {
+        this.$bus.$on('view_data_change', this.onViewDataChange)
+      }
     },
 
     onDataChange(data) {

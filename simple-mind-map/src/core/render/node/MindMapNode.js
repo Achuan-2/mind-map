@@ -548,7 +548,7 @@ class MindMapNode {
   }
 
   // 获取节点相当于画布的位置
-  getNodePosInClient(_left, _top, drawTransform = this.mindMap.draw.transform()) {
+  getNodePosInClient(_left, _top, drawTransform = this.mindMap.view.getDrawTransform()) {
     const { scaleX, scaleY, translateX, translateY } = drawTransform
     const left = _left * scaleX + translateX
     const top = _top * scaleY + translateY
@@ -559,7 +559,7 @@ class MindMapNode {
   }
 
   // 判断节点是否可见
-  checkIsInClient(padding = 0, drawTransform = this.mindMap.draw.transform()) {
+  checkIsInClient(padding = 0, drawTransform = this.mindMap.view.getDrawTransform()) {
     const { left: nx, top: ny } = this.getNodePosInClient(this.left, this.top, drawTransform)
     const x2 = nx + this.width * drawTransform.scaleX
     const y2 = ny + this.height * drawTransform.scaleY
@@ -619,7 +619,7 @@ class MindMapNode {
     this.renderLine()
     const { openPerformance, performanceConfig } = this.mindMap.opt
     if (openPerformance && !forceRender && !renderContext.drawTransform) {
-      renderContext.drawTransform = this.mindMap.draw.transform()
+      renderContext.drawTransform = this.mindMap.view.getDrawTransform()
     }
     // 强制渲染、或没有开启性能模式、或不在画布可视区域内不渲染节点内容
     // 根节点不进行懒加载，始终渲染，因为滚动条插件依赖根节点进行计算
@@ -1078,7 +1078,7 @@ class MindMapNode {
   // 获取节点的尺寸和位置信息，宽高是应用了缩放效果后的实际宽高，位置信息相对于画布
   getRectInSvg() {
     const { scaleX, scaleY, translateX, translateY } =
-      this.mindMap.draw.transform()
+      this.mindMap.view.getDrawTransform()
     let { left, top, width, height } = this
     const right = (left + width) * scaleX + translateX
     const bottom = (top + height) * scaleY + translateY

@@ -241,7 +241,7 @@ class NodeImgAdjust {
   onMousedown(e) {
     this.mindMap.emit('node_img_adjust_btn_mousedown', this.node)
     this.isMousedown = true
-    this.mousedownDrawTransform = this.mindMap.draw.transform()
+    this.mousedownDrawTransform = this.mindMap.view.getDrawTransform()
     // 隐藏节点实际图片
     // this.hideNodeImage()
     this.mousedownOffset.x = e.clientX - this.rect.x2

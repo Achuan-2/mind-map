@@ -244,7 +244,7 @@ class KeyboardNavigation {
   //  获取节点的位置信息
   getNodeRect(node) {
     let { scaleX, scaleY, translateX, translateY } =
-      this.mindMap.draw.transform()
+      this.mindMap.view.getDrawTransform()
     let { left, top, width, height } = node
     return {
       right: (left + width) * scaleX + translateX,

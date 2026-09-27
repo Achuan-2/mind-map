@@ -170,7 +170,7 @@ class Scrollbar {
   // 更新视图
   updateMindMapView(type, offset) {
     const scrollbarData = this.calculationScrollbar()
-    const t = this.mindMap.draw.transform()
+    const t = this.mindMap.view.getDrawTransform()
     const drawRect = this.mindMap.draw.rbox()
     const rootRect = this.mindMap.renderer.root.group.rbox()
     const rootCenterOffset = this.mindMap.renderer.layout.getRootCenterOffset(

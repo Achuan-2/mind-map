@@ -513,7 +513,7 @@ class AssociativeLine {
   getTransformedEventPos(e) {
     let { x, y } = this.mindMap.toPos(e.clientX, e.clientY)
     let { scaleX, scaleY, translateX, translateY } =
-      this.mindMap.draw.transform()
+      this.mindMap.view.getDrawTransform()
     return {
       x: (x - translateX) / scaleX,
       y: (y - translateY) / scaleY
@@ -523,7 +523,7 @@ class AssociativeLine {
   // 计算节点偏移位置
   getNodePos(node) {
     const { scaleX, scaleY, translateX, translateY } =
-      this.mindMap.draw.transform()
+      this.mindMap.view.getDrawTransform()
     const { left, top, width, height } = node
     let translateLeft = left * scaleX + translateX
     let translateTop = top * scaleY + translateY
