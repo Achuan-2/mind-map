@@ -367,7 +367,8 @@ export default {
       const mindMap = new MindMap({
         el: this.$refs.mindMapContainer,
         data: root,
-        fit: false,
+        // 导图库会在首次节点渲染完成后缩放、居中到整张导图。
+        fit: true,
         layout: layout,
         theme: theme.template,
         themeConfig: theme.config,

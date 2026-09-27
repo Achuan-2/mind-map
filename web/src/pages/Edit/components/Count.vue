@@ -87,6 +87,9 @@ export default {
 
 <style lang="less" scoped>
 .countContainer {
+  // 避免双击画布空白时，浏览器选中附近的统计文字。
+  -webkit-user-select: none;
+  user-select: none;
   padding: 0 12px;
   position: fixed;
   left: 20px;

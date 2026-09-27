@@ -28,9 +28,6 @@
       <div class="btn iconfont iconsousuo" @click="showSearch"></div>
     </div>
     <div class="item">
-      <MouseAction :isDark="isDark" :mindMap="mindMap"></MouseAction>
-    </div>
-    <div class="item">
       <el-tooltip
         effect="dark"
         :content="
@@ -130,7 +127,6 @@
 <script>
 import Scale from './Scale.vue'
 import Fullscreen from './Fullscreen.vue'
-import MouseAction from './MouseAction.vue'
 import { langList } from '@/config'
 import i18n from '@/i18n'
 import { storeLang, getLang } from '@/api'
@@ -143,7 +139,6 @@ export default {
   components: {
     Scale,
     Fullscreen,
-    MouseAction,
     Demonstrate
   },
   props: {

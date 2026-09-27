@@ -5,8 +5,17 @@
 </template>
 
 <script>
+import { preventPageSelectAll } from './utils/preventPageSelectAll'
+
 export default {
-  name: 'App'
+  name: 'App',
+  mounted() {
+    // 捕获阶段处理，覆盖工具栏及阻止键盘事件冒泡的弹窗控件。
+    document.addEventListener('keydown', preventPageSelectAll, true)
+  },
+  beforeDestroy() {
+    document.removeEventListener('keydown', preventPageSelectAll, true)
+  }
 }
 </script>
 
