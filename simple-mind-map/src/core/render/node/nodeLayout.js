@@ -42,7 +42,7 @@ function getNodeRect() {
     }
   }
   const { TAG_PLACEMENT, IMG_PLACEMENT } = CONSTANTS
-  const { textContentMargin } = this.mindMap.opt
+  const textContentMargin = this.getTextContentMargin()
   const tagPlacement = this.getStyle('tagPlacement') || TAG_PLACEMENT.RIGHT
   const tagIsBottom = tagPlacement === TAG_PLACEMENT.BOTTOM
   const imgPlacement = this.getStyle('imgPlacement') || IMG_PLACEMENT.TOP
@@ -229,9 +229,9 @@ function layout() {
   this.group.clear()
   const {
     openRealtimeRenderOnNodeTextEdit,
-    textContentMargin,
     addCustomContentToNode
   } = this.mindMap.opt
+  const textContentMargin = this.getTextContentMargin()
   // 避免编辑过程中展开收起按钮闪烁的问题
   // 暂时去掉，带来的问题太多
   // if (

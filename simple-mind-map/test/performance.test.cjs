@@ -17,6 +17,8 @@ const bundle = webRequire('esbuild').buildSync({
       export { bfsWalk, getNodeDataSnapshot } from './src/utils/index.js'
       export { default as Base } from './src/layouts/Base.js'
       export { default as MindMapNode } from './src/core/render/node/MindMapNode.js'
+      export { default as NodeContents } from './src/core/render/node/nodeCreateContents.js'
+      export { default as NodeLayout } from './src/core/render/node/nodeLayout.js'
       export { default as Render } from './src/core/render/Render.js'
       export { default as RenderQueue } from './src/utils/RenderQueue.js'
       export { default as MindMap } from './index.js'
@@ -48,7 +50,7 @@ const context = {
 }
 context.exports = context.module.exports
 vm.runInNewContext(bundle, context)
-const { bfsWalk, getNodeDataSnapshot, Base, MindMapNode, Render, RenderQueue, MindMap, markMindMapRaw } = context.module.exports
+const { bfsWalk, getNodeDataSnapshot, Base, MindMapNode, NodeContents, NodeLayout, Render, RenderQueue, MindMap, markMindMapRaw } = context.module.exports
 const drainTimers = () => {
   while (timers.size) {
     const [id, fn] = timers.entries().next().value
@@ -56,6 +58,66 @@ const drainTimers = () => {
     fn()
   }
 }
+
+test('node icons and spacing follow layer/custom font sizes and rich-text fonts', () => {
+  const node = Object.create(MindMapNode.prototype)
+  Object.assign(node, NodeContents)
+  Object.assign(node, {
+    nodeData: { data: { fontSize: 32 } },
+    mindMap: { opt: { textContentMargin: 2, noteIcon: { style: {} } } },
+    getStyle: prop => prop === 'iconSize' ? 20 : node.nodeData.data.fontSize
+  })
+  assert.equal(node.getNodeIconSize(), 32)
+  assert.equal(node.getTextContentMargin(), 4)
+  node.nodeData.data.fontSize = 48
+  assert.equal(node.getNodeIconSize(), 48)
+  node.nodeData.data.fontSize = 12
+  assert.equal(node.getNodeIconSize(), 12)
+  node.nodeData.data.richText = true
+  node._textData = { fontSize: 36 }
+  assert.equal(node.getNodeIconSize(), 36)
+  assert.equal(node.getTextContentMargin(), 4.5)
+  assert.equal(node.getNodeIconSize('noteIcon'), 36)
+  node.mindMap.opt.noteIcon.style.size = 18
+  assert.equal(node.getNodeIconSize('noteIcon'), 18)
+})
+
+test('node bounds include scaled icons and the same spacing used by layout', () => {
+  const node = Object.create(MindMapNode.prototype)
+  Object.assign(node, NodeContents, NodeLayout, {
+    nodeData: { data: { fontSize: 32 } },
+    mindMap: {
+      opt: { textContentMargin: 2, imgTextMargin: 0 },
+      nodeInnerPrefixList: [], nodeInnerPostfixList: []
+    },
+    getStyle: prop => ({ fontSize: 32, iconSize: 20 })[prop],
+    _tagData: [], _rectInfo: {}, shapePadding: {},
+    _textData: { width: 100, height: 38.4 },
+    shapeInstance: { getShapePadding: () => ({ paddingX: 0, paddingY: 0 }) },
+    getPaddingVale: () => ({ paddingX: 15, paddingY: 5 }),
+    getBorderWidth: () => 0
+  })
+  const size = node.getNodeIconSize()
+  node._iconData = [{ width: size, height: size }, { width: size, height: size }]
+  const rect = node.getNodeRect()
+  assert.equal(rect.width, 100 + size * 2 + node.getTextContentMargin() * 2 + 30)
+  assert.equal(rect.height, 48.4)
+})
+
+test('text-only refresh rebuilds dependent icons after measuring the new font', () => {
+  const node = Object.create(MindMapNode.prototype)
+  const seen = []
+  Object.assign(node, {
+    mindMap: { opt: {}, nodeInnerPrefixList: [], nodeInnerPostfixList: [] },
+    createTextNode: () => { seen.push('text'); return { fontSize: 48 } },
+    createIconNode: () => { seen.push(['icon', node._textData.fontSize]); return [] },
+    createHyperlinkNode: () => seen.push('hyperlink'),
+    createNoteNode: () => seen.push('note'),
+    createAttachmentNode: () => seen.push('attachment')
+  })
+  node.createNodeData(['text'])
+  assert.deepEqual(seen, ['text', ['icon', 48], 'hyperlink', 'note', 'attachment'])
+})
 const makeTree = count => ({
   data: { uid: 'root', text: 'root', isActive: false, expand: true },
   children: Array.from({ length: count }, (_, i) => ({

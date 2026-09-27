@@ -266,8 +266,14 @@ class MindMapNode {
       return
     }
     if (createTypes.image) this._imgData = this.createImgNode()
+    if (createTypes.text) {
+      this._textData = this.createTextNode()
+      // 图标尺寸依赖正文实际字号，局部更新文本时也需要重新计算。
+      ;['icon', 'hyperlink', 'note', 'attachment'].forEach(type => {
+        createTypes[type] = true
+      })
+    }
     if (createTypes.icon) this._iconData = this.createIconNode()
-    if (createTypes.text) this._textData = this.createTextNode()
     if (createTypes.hyperlink) this._hyperlinkData = this.createHyperlinkNode()
     if (createTypes.tag) this._tagData = this.createTagNode()
     if (createTypes.note) this._noteData = this.createNoteNode()

@@ -12,6 +12,7 @@ import {
 import { Image as SVGImage, SVG, A, G, Rect, Text } from '@svgdotjs/svg.js'
 import iconsSvg from '../../../svg/icons'
 import { noneRichTextNodeLineHeight } from '../../../constants/constant'
+import defaultTheme from '../../../theme/default'
 
 // 测量svg文本宽高
 const measureText = (text, style) => {
@@ -101,7 +102,7 @@ function createIconNode() {
   if (!_data.icon || _data.icon.length <= 0) {
     return []
   }
-  let iconSize = this.mindMap.themeConfig.iconSize
+  const iconSize = this.getNodeIconSize()
   return _data.icon.map(item => {
     let src = iconsSvg.getNodeIconListIcon(
       item,
@@ -213,6 +214,18 @@ function createRichTextNode(specifyText) {
     el.style.width = ''
   }
   let { width, height } = el.getBoundingClientRect()
+  // 富文本可在正文中单独指定字号，图标应跟随实际文字，而非仅跟随主题。
+  let fontSize = 0
+  const textParents = new Set()
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  let textNode
+  while ((textNode = walker.nextNode())) {
+    if (textNode.textContent.trim()) textParents.add(textNode.parentElement)
+  }
+  textParents.forEach(parent => {
+    const size = parseFloat(window.getComputedStyle(parent).fontSize)
+    if (Number.isFinite(size)) fontSize = Math.max(fontSize, size)
+  })
   // 如果文本为空，那么需要计算一个默认高度
   if (height <= 0) {
     div.innerHTML = `<p>${emptyTextMeasureHeightText}</p>`
@@ -244,7 +257,8 @@ function createRichTextNode(specifyText) {
     node: g,
     nodeContent: foreignObject,
     width,
-    height
+    height,
+    fontSize: fontSize || parseFloat(this.getStyle('fontSize'))
   }
 }
 
@@ -547,10 +561,27 @@ function createAttachmentNode() {
   }
 }
 
-// 获取节点图标大小
+// 默认图标为一倍字号，主题图标尺寸相对于默认值调整该比例。
+function getNodeContentFontSize() {
+  const size = this.getData('richText') && this._textData?.fontSize
+    ? this._textData.fontSize
+    : parseFloat(this.getStyle('fontSize'))
+  return Number.isFinite(size) && size > 0 ? size : defaultTheme.root.fontSize
+}
+
+function getTextContentMargin() {
+  return this.mindMap.opt.textContentMargin *
+    this.getNodeContentFontSize() / defaultTheme.root.fontSize
+}
+
+// 默认随字号缩放；备注、附件、超链接单独设置的尺寸保持原值。
 function getNodeIconSize(prop) {
-  const { style } = this.mindMap.opt[prop]
-  return isUndef(style.size) ? this.mindMap.themeConfig.iconSize : style.size
+  if (prop) {
+    const { style } = this.mindMap.opt[prop]
+    if (!isUndef(style.size)) return style.size
+  }
+  return this.getStyle('iconSize') *
+    this.getNodeContentFontSize() / defaultTheme.iconSize
 }
 
 // 获取节点备注显示位置
@@ -608,6 +639,8 @@ export default {
   createAttachmentNode,
   getNoteContentPosition,
   getNodeIconSize,
+  getNodeContentFontSize,
+  getTextContentMargin,
   measureCustomNodeContentSize,
   isUseCustomNodeContent
 }
