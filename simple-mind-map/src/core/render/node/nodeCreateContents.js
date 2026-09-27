@@ -187,6 +187,24 @@ function createRichTextNode(specifyText) {
   div.innerHTML = html
   const el = div.children[0]
   el.classList.add('smm-richtext-node-wrap')
+  // 图标只用于展示，不写入节点正文或 Quill 编辑内容。
+  el.querySelectorAll('a[href]').forEach(link => {
+    const icon = SVG(iconsSvg.hyperlink)
+      .addClass('smm-link-icon')
+      .attr({
+        width: '1em',
+        height: '1em',
+        fill: 'currentColor',
+        'aria-hidden': 'true',
+        focusable: 'false'
+      })
+      .css({
+        'vertical-align': '-0.15em',
+        'margin-right': '0.15em',
+        'user-select': 'none'
+      })
+    link.prepend(icon.node)
+  })
   addXmlns(el)
   el.style.maxWidth = textAutoWrapWidth + 'px'
   if (hasCustomWidth) {
@@ -333,6 +351,7 @@ function createHyperlinkNode() {
   const node = new SVG().size(iconSize, iconSize)
   // 超链接节点
   const a = new A().to(hyperlink).target('_blank')
+  a.addClass('smm-link-icon')
   a.node.addEventListener('click', e => {
     if (typeof customHyperlinkJump === 'function') {
       e.preventDefault()

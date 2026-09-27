@@ -98,7 +98,7 @@ class Export {
         // 添加重置样式和链接样式
         const linkCss = `
           a {
-            color: #0066cc;
+            color: inherit;
             text-decoration: underline;
           }
         `

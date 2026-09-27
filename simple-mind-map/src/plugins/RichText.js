@@ -114,8 +114,9 @@ class RichText {
         text-align: center;
       }
 
-      .smm-richtext-node-wrap a {
-        color: #0066cc;
+      .smm-richtext-node-wrap a,
+      .ql-snow .ql-editor a {
+        color: inherit;
         text-decoration: underline;
       }
       `
@@ -171,6 +172,11 @@ class RichText {
     this.extendFont([])
 
     this.extendAlign()
+
+    // 保留思源块链接，否则 Quill 在加载和编辑链接时会将其改为 about:blank。
+    const LinkFormat = Quill.import('formats/link')
+    LinkFormat.PROTOCOL_WHITELIST = [...LinkFormat.PROTOCOL_WHITELIST, 'siyuan']
+    Quill.register(LinkFormat, true)
 
     // 扩展quill的字号列表
     const SizeAttributor = Quill.import('attributors/class/size')
