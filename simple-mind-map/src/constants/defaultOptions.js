@@ -23,8 +23,8 @@ export const defaultOpt = {
   scaleRatio: 0.2,
   // 平移的步长比例，只在鼠标滚轮和触控板触发的平移中应用
   translateRatio: 1,
-  // 最小缩小值，百分数，最小为0，限制view.narrow和滚轮缩放，不限制view.setScale等其他方法
-  minZoomRatio: 1,
+  // 最小缩放值，百分数，限制按钮、滚轮及view.setScale。
+  minZoomRatio: 10,
   // 最大放大值，百分数，传-1代表不限制，否则传0以上数字，，该选项只会影响view.enlarge方法
   maxZoomRatio: 400,
   // 自定义判断wheel事件是否来自电脑的触控板
@@ -58,8 +58,8 @@ export const defaultOpt = {
   mousewheelAction: CONSTANTS.MOUSE_WHEEL_ACTION.MOVE, // zoom（放大缩小）、move（上下移动）
   // 当mousewheelAction设为move时，可以通过该属性控制鼠标滚动一下视图移动的步长，单位px
   mousewheelMoveStep: 100,
-  // 鼠标滚轮每档缩放的相对比例
-  mousewheelZoomRatio: 0.15,
+  // 鼠标滚轮每档缩放的固定增量，0.1表示10个百分点。
+  mousewheelZoomRatio: 0.1,
   // 触控板捏合缩放的相对比例
   touchpadZoomRatio: 0.02,
   // 当mousewheelAction设为zoom时，或者按住Ctrl键时，默认向前滚动是缩小，向后滚动是放大，如果该属性设为true，那么会反过来

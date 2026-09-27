@@ -316,7 +316,7 @@ class View {
     this.emitEvent('scale')
   }
 
-  // 滚轮按当前缩放比例调整，避免在低倍率时出现固定百分比的大幅跳变
+  // 鼠标滚轮按固定百分点调整，触控板保留连续的比例缩放。
   zoomByWheel(zoomIn, cx, cy, isTouchPad) {
     const {
       mousewheelZoomRatio,
@@ -324,14 +324,15 @@ class View {
       minZoomRatio,
       maxZoomRatio
     } = this.mindMap.opt
-    const factor = 1 + (isTouchPad ? touchpadZoomRatio : mousewheelZoomRatio)
     let scale
-    if (zoomIn) {
-      scale = this.scale * factor
-      if (maxZoomRatio !== -1) scale = Math.min(scale, maxZoomRatio / 100)
+    if (isTouchPad) {
+      const factor = 1 + touchpadZoomRatio
+      scale = zoomIn ? this.scale * factor : this.scale / factor
     } else {
-      scale = Math.max(this.scale / factor, minZoomRatio / 100)
+      scale = this.scale + (zoomIn ? mousewheelZoomRatio : -mousewheelZoomRatio)
     }
+    scale = Math.max(scale, minZoomRatio / 100)
+    if (maxZoomRatio !== -1) scale = Math.min(scale, maxZoomRatio / 100)
     this.scaleInCenter(scale, cx, cy)
     this.transform()
     this.emitEvent('scale')
@@ -369,6 +370,7 @@ class View {
 
   //  设置缩放
   setScale(scale, cx, cy) {
+    scale = Math.max(scale, this.mindMap.opt.minZoomRatio / 100)
     if (cx !== undefined && cy !== undefined) {
       this.scaleInCenter(scale, cx, cy)
     } else {
