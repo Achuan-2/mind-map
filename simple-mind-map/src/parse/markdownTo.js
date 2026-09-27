@@ -1,6 +1,7 @@
 import { fromMarkdown } from 'mdast-util-from-markdown'
 import { gfm } from 'micromark-extension-gfm'
 import { gfmFromMarkdown } from 'mdast-util-gfm'
+import { processSiyuanImages } from '../utils/siyuanImage.js'
 
 // HTML 转义函数
 const escapeHtml = (s) => {
@@ -303,72 +304,6 @@ const getNodeImage = node => {
   }
   
   return null
-}
-
-// 将 Blob 转换为 DataURL
-const blobToDataURL = (blob) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => resolve(e.target.result)
-    reader.onerror = (e) => reject(e)
-    reader.readAsDataURL(blob)
-  })
-}
-
-// 获取思源图片并转换为 base64
-const getSiyuanImage = async (imageURL, reload) => {
-  if (imageURL.startsWith('assets/')) {
-    imageURL = 'http://127.0.0.1:6806/' + imageURL
-  }
-  try {
-    const response = await fetch(imageURL, { cache: reload ? 'reload' : 'default' })
-    if (!response.ok) return ""
-    const blob = await response.blob()
-    const base64 = await blobToDataURL(blob)
-    return base64
-  } catch (e) {
-    console.error('Failed to fetch Siyuan image:', e)
-    return ""
-  }
-}
-
-// 获取图片尺寸
-const getImageSize = (src) => {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      resolve({ width: img.width, height: img.height })
-    }
-    img.onerror = () => {
-      resolve({ width: 100, height: 100 })
-    }
-    img.src = src
-  })
-}
-
-// 处理思源图片:将图片 URL 转换为 base64 并获取实际尺寸
-const processSiyuanImages = async (node) => {
-  const promises = []
-  const walk = (n) => {
-    if (n.data && n.data.image && !n.data.image.startsWith('data:')) {
-      promises.push((async () => {
-        const base64 = await getSiyuanImage(n.data.image, false)
-        if (base64) {
-          n.data.image = base64
-          const size = await getImageSize(base64)
-          n.data.imageSize = {
-            width: size.width,
-            height: size.height
-          }
-        }
-      })())
-    }
-    if (n.children && n.children.length > 0) {
-      n.children.forEach(child => walk(child))
-    }
-  }
-  walk(node)
-  await Promise.all(promises)
 }
 
 // 处理list的情况

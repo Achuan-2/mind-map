@@ -1,5 +1,7 @@
 import markdown from 'simple-mind-map/src/parse/markdown.js'
 import { checkIsRichText } from 'simple-mind-map/src/utils/index.js'
+// 插件入口也使用当前源码，避免 pnpm file: 依赖的副本保留旧图片加载逻辑。
+import { processSiyuanImages } from '../../../simple-mind-map/src/utils/siyuanImage.js'
 
 // 思源API调用
 export async function fetchSyncPost(url, data, returnType = 'json') {
@@ -298,7 +300,8 @@ export async function importContent(blockId, blockInfo, maxLevel = 0, currentIma
   const title = cleanText(blockInfo.content || blockInfo.name || '内容')
 
   // 使用 markdown 解析器转换
-  const parsed = await markdown.transformMarkdownToWithImages(mdContent)
+  const parsed = markdown.transformMarkdownTo(mdContent)
+  await processSiyuanImages(parsed)
 
   const plainTitle = title.replace(/<[^>]+>/g, '')
   const url = `siyuan://blocks/${blockIds[0]}`
