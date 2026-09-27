@@ -108,6 +108,7 @@ import SidebarTrigger from './SidebarTrigger.vue'
 import { mapState } from 'vuex'
 import icon from '@/config/icon'
 import Vue from 'vue'
+import { markMindMapRaw } from '@/utils/mindMapRaw'
 import Search from './Search.vue'
 import NodeIconSidebar from './NodeIconSidebar.vue'
 import NodeIconToolbar from './NodeIconToolbar.vue'
@@ -190,7 +191,7 @@ export default {
   data() {
     return {
       enableShowLoading: true,
-      mindMap: null,
+      mindMapHolder: null,
       mindMapData: null,
       mindMapConfig: {},
       prevImg: '',
@@ -199,6 +200,11 @@ export default {
     }
   },
   computed: {
+    // 只让实例引用参与响应式更新，节点、SVG 和缓存由导图库自己的事件维护。
+    // 冻结容器不会冻结实例，插件仍然可以正常添加字段和修改节点。
+    mindMap() {
+      return this.mindMapHolder ? this.mindMapHolder.instance : null
+    },
     ...mapState({
       isZenMode: state => state.localConfig.isZenMode,
       openNodeRichText: state => state.localConfig.openNodeRichText,
@@ -259,6 +265,9 @@ export default {
     this.$bus.$off('node_tree_render_end', this.handleHideLoading)
     this.$bus.$off('showLoading', this.handleShowLoading)
     this.$bus.$off('localStorageExceeded', this.onLocalStorageExceeded)
+    this.$bus.$off('data_change', this.onDataChange)
+    this.$bus.$off('view_data_change', this.onViewDataChange)
+    clearTimeout(this.storeConfigTimer)
     window.removeEventListener('resize', this.handleResize)
     
     this.mindMap.destroy()
@@ -315,17 +324,19 @@ export default {
 
     // 存储数据当数据有变时
     bindSaveEvent() {
-      this.$bus.$on('data_change', data => {
-        storeData({ root: data })
-      })
-      this.$bus.$on('view_data_change', data => {
-        clearTimeout(this.storeConfigTimer)
-        this.storeConfigTimer = setTimeout(() => {
-          storeData({
-            view: data
-          })
-        }, 300)
-      })
+      this.$bus.$on('data_change', this.onDataChange)
+      this.$bus.$on('view_data_change', this.onViewDataChange)
+    },
+
+    onDataChange(data) {
+      storeData({ root: data })
+    },
+
+    onViewDataChange(data) {
+      clearTimeout(this.storeConfigTimer)
+      this.storeConfigTimer = setTimeout(() => {
+        storeData({ view: data })
+      }, 300)
     },
 
     // 手动保存
@@ -350,7 +361,7 @@ export default {
         theme = exampleData.theme
         view = null
       }
-      this.mindMap = new MindMap({
+      const mindMap = new MindMap({
         el: this.$refs.mindMapContainer,
         data: root,
         fit: false,
@@ -362,6 +373,7 @@ export default {
         nodeNoteTooltipZIndex: 1000,
         customNoteContentShow: {
           show: (content, left, top, node) => {
+            markMindMapRaw(node)
             this.$bus.$emit('showNoteContent', content, left, top, node)
           },
           hide: () => {
@@ -447,6 +459,7 @@ export default {
           })
         }
       })
+      this.mindMapHolder = Object.freeze({ instance: markMindMapRaw(mindMap) })
       this.loadPlugins()
       // 应用彩虹线条配置（需要在 MindMap 初始化后调用）
       if (config && config.rainbowLinesConfig) {
@@ -486,6 +499,11 @@ export default {
       ].forEach(event => {
         this.mindMap.on(event, (...args) => {
           this.$bus.$emit(event, ...args)
+          if (event === 'data_change') {
+            // 数据实例不交给 Vue 深层观察，通过新数组通知选中节点的工具栏和侧边栏。
+            const activeNodes = [...this.mindMap.renderer.activeNodeList]
+            this.$bus.$emit('node_active', activeNodes[0] || null, activeNodes)
+          }
         })
       })
       this.bindSaveEvent()

@@ -7,6 +7,7 @@ import Timeline from '../../layouts/Timeline'
 import VerticalTimeline from '../../layouts/VerticalTimeline'
 import Fishbone from '../../layouts/Fishbone'
 import TextEdit from './TextEdit'
+import RenderQueue from '../../utils/RenderQueue'
 import {
   copyNodeTree,
   simpleDeepClone,
@@ -90,6 +91,8 @@ class Render {
     // 用于缓存节点
     this.nodeCache = {}
     this.lastNodeCache = {}
+    this.nodeRenderQueues = new Set()
+    this.isDestroyed = false
     // 收集触发render的来源
     this.renderSourceList = []
     // 收集render的回调函数
@@ -161,7 +164,7 @@ class Render {
     })
     // 性能模式
     const onViewDataChange = throttle(() => {
-      if (!this.renderTree) {
+      if (this.isDestroyed || !this.renderTree) {
         return
       }
       if (this.root) {
@@ -175,6 +178,13 @@ class Render {
         )
       }
     }, performanceConfig.time)
+    this.mindMap.on('beforeDestroy', () => {
+      this.isDestroyed = true
+      clearTimeout(this.renderTimer)
+      clearTimeout(this.emitNodeActiveEventTimer)
+      this.nodeRenderQueues.forEach(queue => queue.cancel())
+      this.nodeRenderQueues.clear()
+    })
     if (openPerformance) {
       this.mindMap.on('view_data_change', onViewDataChange)
     }
@@ -217,6 +227,7 @@ class Render {
 
   // 监听文本编辑事件，实时更新节点大小
   onNodeTextEditChange({ node, text }) {
+    if (this.isDestroyed) return
     node._textData = node.createTextNode(text)
     const { width, height } = node.getNodeRect()
     node.width = width
@@ -551,6 +562,7 @@ class Render {
 
   // 渲染
   render(callback, source) {
+    if (this.isDestroyed) return
     this.addRenderParams(callback, source)
     clearTimeout(this.renderTimer)
     this.renderTimer = setTimeout(() => {
@@ -560,6 +572,7 @@ class Render {
 
   // 真正的渲染
   _render() {
+    if (this.isDestroyed) return
     // 切换主题时，被收起的节点需要添加样式复位的标注
     if (this.checkHasRenderSource(CONSTANTS.CHANGE_THEME)) {
       this.resetUnExpandNodeStyle()
@@ -618,6 +631,14 @@ class Render {
     node.getSize()
     node.customNodeContentRealtimeLayout()
     this.mindMap.render()
+  }
+
+  createNodeRenderQueue(beforeFlush) {
+    const queue = new RenderQueue(beforeFlush, () => {
+      this.nodeRenderQueues.delete(queue)
+    })
+    this.nodeRenderQueues.add(queue)
+    return queue
   }
 
   // 给当前被收起来的节点数据添加更新标志
@@ -2126,23 +2147,32 @@ class Render {
     }
     let parentsList = []
     let isGeneralization = false
-    const cache = {}
+    const parentMap = new Map()
+    // 每个节点只保存父引用，找到目标后才组装祖先链，避免复制所有节点的完整路径。
+    const getParents = node => {
+      const parents = []
+      while (node) {
+        parents.push(node)
+        node = parentMap.get(node)
+      }
+      return parents.reverse()
+    }
     bfsWalk(this.renderTree, (node, parent) => {
+      parentMap.set(node, parent)
       if (node.data.uid === uid) {
-        parentsList = parent ? [...cache[parent.data.uid], parent] : []
+        parentsList = getParents(parent)
         return 'stop'
       }
       const generalizationList = formatGetNodeGeneralization(node.data)
       generalizationList.forEach(item => {
         if (item.uid === uid) {
-          parentsList = parent ? [...cache[parent.data.uid], parent, node] : []
+          parentsList = parent ? getParents(node) : []
           isGeneralization = true
         }
       })
       if (isGeneralization) {
         return 'stop'
       }
-      cache[node.data.uid] = parent ? [...cache[parent.data.uid], parent] : []
     })
     let needRender = false
     parentsList.forEach(node => {
@@ -2173,11 +2203,15 @@ class Render {
   // 根据uid找到对应的节点实例
   findNodeByUid(uid) {
     if (!this.root) return
+    // 当前布局已经按 uid 收集了所有展开节点，普通节点无需再遍历整树。
+    if (Object.prototype.hasOwnProperty.call(this.nodeCache, uid)) {
+      return this.nodeCache[uid]
+    }
     let res = null
-    walk(this.root, null, node => {
+    bfsWalk(this.root, node => {
       if (node.getData('uid') === uid) {
         res = node
-        return true
+        return 'stop'
       }
       // 概要节点
       let isGeneralization = false
@@ -2188,7 +2222,7 @@ class Render {
         }
       })
       if (isGeneralization) {
-        return true
+        return 'stop'
       }
     })
     return res

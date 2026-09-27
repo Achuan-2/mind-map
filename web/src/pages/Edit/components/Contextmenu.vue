@@ -392,6 +392,8 @@ export default {
     show(e, node) {
       this.type = 'node'
       this.isShow = true
+      // 同一节点再次打开时，也要重新计算菜单中的链接、备注等状态。
+      this.node = null
       this.node = node
       const number = this.node.getData('number')
       if (number) {

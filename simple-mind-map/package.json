@@ -24,7 +24,8 @@
     "format": "prettier --write .",
     "types": "npx -p typescript tsc index.js --declaration --allowJs --emitDeclarationOnly --outDir types --target es2017 --skipLibCheck & node ./bin/createPluginsTypeFiles.js",
     "wsServe": "node ./bin/wsServer.mjs",
-    "test:markdown": "node ./test/markdownTo.test.mjs"
+    "test:markdown": "node ./test/markdownTo.test.mjs",
+    "test:performance": "node ./test/performance.test.cjs"
   },
   "type": "module",
 

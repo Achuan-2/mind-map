@@ -28,7 +28,6 @@ export default {
   },
   data() {
     return {
-      textStr: '',
       words: 0,
       num: 0,
       lastSaveTime: ''
@@ -53,24 +52,23 @@ export default {
   methods: {
     // 监听数据变化
     onDataChange(data) {
-      this.textStr = ''
-      this.words = 0
-      this.num = 0
-      this.walk(data)
-      countEl.innerHTML = this.textStr
-      this.words = countEl.textContent.length
-    },
-
-    // 遍历
-    walk(data) {
-      if (!data) return
-      this.num++
-      this.textStr += String(data.data.text) || ''
-      if (data.children && data.children.length > 0) {
-        data.children.forEach(item => {
-          this.walk(item)
-        })
+      const texts = []
+      const stack = data ? [data] : []
+      let num = 0
+      while (stack.length > 0) {
+        const node = stack.pop()
+        num++
+        texts.push(String(node.data.text) || '')
+        // 保留原先的前序顺序，统计期间只更新局部变量。
+        if (node.children) {
+          for (let i = node.children.length - 1; i >= 0; i--) {
+            stack.push(node.children[i])
+          }
+        }
       }
+      countEl.innerHTML = texts.join('')
+      this.num = num
+      this.words = countEl.textContent.length
     },
 
     // 保存成功时更新时间

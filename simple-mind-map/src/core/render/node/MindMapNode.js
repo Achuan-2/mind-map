@@ -11,7 +11,7 @@ import nodeCooperateMethods from './nodeCooperate'
 import quickCreateChildBtnMethods from './quickCreateChildBtn'
 import nodeLayoutMethods from './nodeLayout'
 import { CONSTANTS } from '../../../constants/constant'
-import { copyNodeTree, createUid, addXmlns } from '../../../utils/index'
+import { copyNodeTree, createUid, addXmlns, getNodeDataSnapshot } from '../../../utils/index'
 
 //  节点类
 class MindMapNode {
@@ -478,7 +478,7 @@ class MindMapNode {
   }
 
   //  更新节点
-  update(forceRender) {
+  update(forceRender, renderContext) {
     if (!this.group) {
       return
     }
@@ -528,13 +528,13 @@ class MindMapNode {
     // 更新拖拽手柄的显示与否
     this.updateDragHandle()
     // 更新概要
-    this.renderGeneralization(forceRender)
+    this.renderGeneralization(forceRender, renderContext)
     // 更新协同头像
     if (this.updateUserListNode) this.updateUserListNode()
     // 更新节点位置
     const t = this.group.transform()
     // 保存一份当前节点数据快照
-    this.nodeDataSnapshot = readonly ? '' : JSON.stringify(this.getData())
+    this.nodeDataSnapshot = readonly ? '' : getNodeDataSnapshot(this.getData())
     // 节点位置变化才更新，因为即使值没有变化属性设置操作也是耗时的
     if (this.left !== t.translateX || this.top !== t.translateY) {
       this.group.translate(this.left - t.translateX, this.top - t.translateY)
@@ -542,8 +542,7 @@ class MindMapNode {
   }
 
   // 获取节点相当于画布的位置
-  getNodePosInClient(_left, _top) {
-    const drawTransform = this.mindMap.draw.transform()
+  getNodePosInClient(_left, _top, drawTransform = this.mindMap.draw.transform()) {
     const { scaleX, scaleY, translateX, translateY } = drawTransform
     const left = _left * scaleX + translateX
     const top = _top * scaleY + translateY
@@ -554,13 +553,15 @@ class MindMapNode {
   }
 
   // 判断节点是否可见
-  checkIsInClient(padding = 0) {
-    const { left: nx, top: ny } = this.getNodePosInClient(this.left, this.top)
+  checkIsInClient(padding = 0, drawTransform = this.mindMap.draw.transform()) {
+    const { left: nx, top: ny } = this.getNodePosInClient(this.left, this.top, drawTransform)
+    const x2 = nx + this.width * drawTransform.scaleX
+    const y2 = ny + this.height * drawTransform.scaleY
     return (
-      nx + this.width > 0 - padding &&
-      ny + this.height > 0 - padding &&
-      nx < this.mindMap.width + padding &&
-      ny < this.mindMap.height + padding
+      Math.max(nx, x2) > -padding &&
+      Math.max(ny, y2) > -padding &&
+      Math.min(nx, x2) < this.mindMap.width + padding &&
+      Math.min(ny, y2) < this.mindMap.height + padding
     )
   }
 
@@ -603,17 +604,23 @@ class MindMapNode {
   // 递归渲染
   // forceRender：强制渲染，无论是否处于画布可视区域
   // async：异步渲染
-  render(callback = () => {}, forceRender = false, async = false) {
+  render(callback = () => {}, forceRender = false, async = false, renderContext = null) {
+    if (this.renderer.isDestroyed) return
+    // 同一批节点共享画布变换；异步任务每批开始时刷新，使用最新的缩放和位置。
+    renderContext = renderContext || { drawTransform: null, queue: null }
     // 节点
     // 重新渲染连线
     this.renderLine()
     const { openPerformance, performanceConfig } = this.mindMap.opt
+    if (openPerformance && !forceRender && !renderContext.drawTransform) {
+      renderContext.drawTransform = this.mindMap.draw.transform()
+    }
     // 强制渲染、或没有开启性能模式、或不在画布可视区域内不渲染节点内容
     // 根节点不进行懒加载，始终渲染，因为滚动条插件依赖根节点进行计算
     if (
       forceRender ||
       !openPerformance ||
-      this.checkIsInClient(performanceConfig.padding) ||
+      this.checkIsInClient(performanceConfig.padding, renderContext.drawTransform) ||
       this.isRoot
     ) {
       if (!this.group) {
@@ -626,7 +633,7 @@ class MindMapNode {
         this.bindGroupEvent()
         this.nodeDraw.add(this.group)
         this.layout()
-        this.update(forceRender)
+        this.update(forceRender, renderContext)
       } else {
         if (!this.nodeDraw.has(this.group)) {
           this.nodeDraw.add(this.group)
@@ -636,7 +643,7 @@ class MindMapNode {
           this.layout()
         }
         this.updateExpandBtnPlaceholderRect()
-        this.update(forceRender)
+        this.update(forceRender, renderContext)
       }
     } else if (openPerformance && performanceConfig.removeNodeWhenOutCanvas) {
       this.removeSelf()
@@ -658,11 +665,17 @@ class MindMapNode {
               }
             },
             forceRender,
-            async
+            async,
+            renderContext
           )
         }
         if (async) {
-          setTimeout(renderChild, 0)
+          if (!renderContext.queue) {
+            renderContext.queue = this.renderer.createNodeRenderQueue(() => {
+              renderContext.drawTransform = null
+            })
+          }
+          renderContext.queue.push(renderChild)
         } else {
           renderChild()
         }

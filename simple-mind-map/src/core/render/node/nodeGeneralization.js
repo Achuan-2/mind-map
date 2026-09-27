@@ -85,7 +85,7 @@ function updateGeneralization() {
 }
 
 //  渲染概要节点
-function renderGeneralization(forceRender) {
+function renderGeneralization(forceRender, renderContext) {
   if (this.isGeneralization) return
   this.updateGeneralizationData()
   const list = this.formatGetGeneralization()
@@ -100,7 +100,7 @@ function renderGeneralization(forceRender) {
   this.renderer.layout.renderGeneralization(this._generalizationList)
   this._generalizationList.forEach(item => {
     this.style.generalizationLine(item.generalizationLine)
-    item.generalizationNode.render(() => {}, forceRender)
+    item.generalizationNode.render(() => {}, forceRender, false, renderContext)
   })
 }
 

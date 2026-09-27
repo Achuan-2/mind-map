@@ -1,7 +1,7 @@
 import MindMapNode from '../core/render/node/MindMapNode'
 import { CONSTANTS, initRootNodePositionMap } from '../constants/constant'
 import Lru from '../utils/Lru'
-import { createUid } from '../utils/index'
+import { createUid, getNodeDataSnapshot } from '../utils/index'
 
 //  布局基类
 class Base {
@@ -68,17 +68,9 @@ class Base {
 
   // 节点节点数据是否发生了改变
   checkIsNodeDataChange(lastData, curData) {
-    if (lastData) {
-      // 对比忽略激活状态和展开收起状态
-      lastData = typeof lastData === 'string' ? JSON.parse(lastData) : lastData
-      lastData.isActive = curData.isActive
-      lastData.expand = curData.expand
-      lastData = JSON.stringify(lastData)
-    } else {
-      // 只在都有数据时才进行对比
-      return false
-    }
-    return lastData !== JSON.stringify(curData)
+    if (!lastData) return false
+    const snapshot = typeof lastData === 'string' ? lastData : getNodeDataSnapshot(lastData)
+    return snapshot !== getNodeDataSnapshot(curData)
   }
 
   // 检查库前置或后置内容是否改变了
@@ -193,7 +185,7 @@ class Base {
       // 也可以直接复用
       newNode = this.lru.get(uid) || this.renderer.lastNodeCache[uid]
       // 保存该节点上一次的数据
-      const lastData = JSON.stringify(newNode.getData())
+      const lastData = getNodeDataSnapshot(newNode.getData())
       // 节点层级改变了
       const isLayerTypeChange = this.checkIsLayerTypeChange(
         newNode.layerIndex,

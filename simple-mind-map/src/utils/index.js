@@ -45,26 +45,28 @@ export const walk = (
 
 //  广度优先遍历树
 export const bfsWalk = (root, callback) => {
-  let stack = [root]
-  let isStop = false
-  if (callback(root, null) === 'stop') {
-    isStop = true
-  }
-  while (stack.length) {
-    if (isStop) {
-      break
-    }
-    let cur = stack.shift()
+  const queue = [root]
+  let index = 0
+  if (callback(root, null) === 'stop') return
+  while (index < queue.length) {
+    const cur = queue[index]
+    // 释放已访问节点的引用，避免长遍历一直持有整条队列。
+    queue[index++] = null
     if (cur.children && cur.children.length) {
-      cur.children.forEach(item => {
-        if (isStop) return
-        stack.push(item)
-        if (callback(item, cur) === 'stop') {
-          isStop = true
-        }
-      })
+      for (const item of cur.children) {
+        queue.push(item)
+        if (callback(item, cur) === 'stop') return
+      }
     }
   }
+}
+
+// 布局复用只关心内容和样式；激活、展开状态不影响节点尺寸。
+export const getNodeDataSnapshot = data => {
+  const content = { ...data }
+  delete content.isActive
+  delete content.expand
+  return JSON.stringify(content)
 }
 
 // 按原比例缩放图片
