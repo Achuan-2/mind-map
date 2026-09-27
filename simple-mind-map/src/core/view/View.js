@@ -56,6 +56,7 @@ class View {
       }
       if (!this.isDraggingView) {
         this.isDraggingView = true
+        this.mindMap.el.classList.add('smm-view-dragging')
         // 边界只依赖导图尺寸和缩放，在一次拖动中无需重复测量整个 SVG。
         if (this.checkNeedMindMapInCanvas()) {
           try {
@@ -105,9 +106,9 @@ class View {
       }
       // 1.鼠标滚轮事件控制缩放
       if (
-        mousewheelAction === CONSTANTS.MOUSE_WHEEL_ACTION.ZOOM ||
         e.ctrlKey ||
-        e.metaKey
+        e.metaKey ||
+        (!isTouchPad && mousewheelAction === CONSTANTS.MOUSE_WHEEL_ACTION.ZOOM)
       ) {
         if (disableMouseWheelZoom) return
         const { x: clientX, y: clientY } = this.mindMap.toPos(
@@ -128,46 +129,47 @@ class View {
         }
         switch (true) {
           // 鼠标滚轮，向上和向左，都是缩小
-          case dirs.includes(CONSTANTS.DIR.UP || CONSTANTS.DIR.LEFT):
+          case dirs.includes(CONSTANTS.DIR.UP) ||
+            dirs.includes(CONSTANTS.DIR.LEFT):
             mousewheelZoomActionReverse
-              ? this.enlarge(cx, cy, isTouchPad)
-              : this.narrow(cx, cy, isTouchPad)
+              ? this.zoomByWheel(true, cx, cy, isTouchPad)
+              : this.zoomByWheel(false, cx, cy, isTouchPad)
             break
           // 鼠标滚轮，向下和向右，都是放大
-          case dirs.includes(CONSTANTS.DIR.DOWN || CONSTANTS.DIR.RIGHT):
+          case dirs.includes(CONSTANTS.DIR.DOWN) ||
+            dirs.includes(CONSTANTS.DIR.RIGHT):
             mousewheelZoomActionReverse
-              ? this.narrow(cx, cy, isTouchPad)
-              : this.enlarge(cx, cy, isTouchPad)
+              ? this.zoomByWheel(false, cx, cy, isTouchPad)
+              : this.zoomByWheel(true, cx, cy, isTouchPad)
             break
         }
       } else {
         // 2.鼠标滚轮事件控制画布移动
-        let stepX = 0
-        let stepY = 0
         if (isTouchPad) {
-          // 如果是触控板，那么直接使用触控板滑动距离
-          stepX = Math.abs(e.wheelDeltaX)
-          stepY = Math.abs(e.wheelDeltaY)
-        } else {
-          stepX = stepY = mousewheelMoveStep
+          // 触控板的双指滑动直接使用像素位移，保留横向和纵向的连续平移。
+          this.translateXY(
+            -e.deltaX * translateRatio,
+            -e.deltaY * translateRatio
+          )
+          return
         }
         let mx = 0
         let my = 0
         // 上移
         if (dirs.includes(CONSTANTS.DIR.DOWN)) {
-          my = -stepY
+          my = -mousewheelMoveStep
         }
         // 下移
         if (dirs.includes(CONSTANTS.DIR.UP)) {
-          my = stepY
+          my = mousewheelMoveStep
         }
         // 右移
         if (dirs.includes(CONSTANTS.DIR.LEFT)) {
-          mx = stepX
+          mx = mousewheelMoveStep
         }
         // 左移
         if (dirs.includes(CONSTANTS.DIR.RIGHT)) {
-          mx = -stepX
+          mx = -mousewheelMoveStep
         }
         this.translateXY(mx * translateRatio, my * translateRatio)
       }
@@ -284,6 +286,7 @@ class View {
     if (this.isDraggingView) {
       this.isDraggingView = false
       this.dragPositionLimit = null
+      this.mindMap.el.classList.remove('smm-view-dragging')
     }
   }
 
@@ -308,6 +311,27 @@ class View {
     let { scaleRatio, minZoomRatio } = this.mindMap.opt
     scaleRatio = scaleRatio / (isTouchPad ? 5 : 1)
     const scale = Math.max(this.scale - scaleRatio, minZoomRatio / 100)
+    this.scaleInCenter(scale, cx, cy)
+    this.transform()
+    this.emitEvent('scale')
+  }
+
+  // 滚轮按当前缩放比例调整，避免在低倍率时出现固定百分比的大幅跳变
+  zoomByWheel(zoomIn, cx, cy, isTouchPad) {
+    const {
+      mousewheelZoomRatio,
+      touchpadZoomRatio,
+      minZoomRatio,
+      maxZoomRatio
+    } = this.mindMap.opt
+    const factor = 1 + (isTouchPad ? touchpadZoomRatio : mousewheelZoomRatio)
+    let scale
+    if (zoomIn) {
+      scale = this.scale * factor
+      if (maxZoomRatio !== -1) scale = Math.min(scale, maxZoomRatio / 100)
+    } else {
+      scale = Math.max(this.scale / factor, minZoomRatio / 100)
+    }
     this.scaleInCenter(scale, cx, cy)
     this.transform()
     this.emitEvent('scale')

@@ -223,6 +223,11 @@ export const ERROR_TYPES = {
 
 // css
 export const cssContent = `
+  .smm-mind-map-container.smm-view-dragging,
+  .smm-mind-map-container.smm-view-dragging * {
+    cursor: grabbing !important;
+  }
+
   /* 鼠标hover和激活时渲染的矩形 */
   .smm-hover-node{
     display: none;

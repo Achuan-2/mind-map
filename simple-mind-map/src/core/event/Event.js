@@ -159,17 +159,17 @@ class Event extends EventEmitter {
     if (e.deltaY > 0) dirs.push(CONSTANTS.DIR.DOWN)
     if (e.deltaX < 0) dirs.push(CONSTANTS.DIR.LEFT)
     if (e.deltaX > 0) dirs.push(CONSTANTS.DIR.RIGHT)
-    // 判断是否是触控板
+    // WheelEvent 没有设备类型字段；触控板通常发送像素级的小幅或横向位移。
     let isTouchPad = false
-    // mac、windows
-    // if (e.wheelDeltaY === e.deltaY * -3 || Math.abs(e.wheelDeltaY) <= 10) {
-    //   isTouchPad = true
-    // }
     const { customCheckIsTouchPad } = this.mindMap.opt
     if (typeof customCheckIsTouchPad === 'function') {
       isTouchPad = customCheckIsTouchPad(e)
     } else {
-      isTouchPad = Math.abs(e.deltaY) <= 10
+      isTouchPad =
+        e.deltaMode === 0 &&
+        (e.deltaX !== 0 ||
+          Math.abs(e.deltaY) < 100 ||
+          !Number.isInteger(e.deltaY))
     }
     this.emit('mousewheel', e, dirs, this, isTouchPad)
   }

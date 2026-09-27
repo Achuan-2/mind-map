@@ -78,9 +78,12 @@ export default class TextEdit {
       this.hideEditTextBox()
     })
     // 鼠标滚动事件
-    this.mindMap.on('mousewheel', () => {
+    this.mindMap.on('mousewheel', (e, dirs, event, isTouchPad) => {
       if (
-        this.mindMap.opt.mousewheelAction === CONSTANTS.MOUSE_WHEEL_ACTION.MOVE
+        !e.ctrlKey &&
+        !e.metaKey &&
+        (isTouchPad ||
+          this.mindMap.opt.mousewheelAction === CONSTANTS.MOUSE_WHEEL_ACTION.MOVE)
       ) {
         this.hideEditTextBox()
       }
